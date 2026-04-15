@@ -10,6 +10,39 @@ import clsx from 'clsx'
 
 type Step = 'upload' | 'confirm' | 'results'
 
+// ── Client-side fallback extraction (used when backend is unreachable) ──────
+const TITLE_KEYWORDS = /\b(engineer|developer|designer|manager|analyst|architect|scientist|consultant|director|lead|senior|junior|full.?stack|frontend|backend|devops|product|software|data|cloud|security|mobile|qa|test|ux|ui|research)\b/i
+const LOCATION_PATTERN = /\b([A-Z][a-zA-Z\s]+,\s*(?:[A-Z]{2}|[A-Z][a-zA-Z]+))\b/
+
+function extractFromCVText(text: string): { title: string; location: string } {
+  const lines = text
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+
+  // Title: look in first 15 lines for a short line matching role keywords
+  let title = ''
+  for (const line of lines.slice(0, 15)) {
+    const wordCount = line.split(/\s+/).length
+    if (wordCount >= 2 && wordCount <= 7 && TITLE_KEYWORDS.test(line) && line.length < 60) {
+      title = line.replace(/[|•·\/\\,]+$/, '').trim()
+      break
+    }
+  }
+
+  // Location: look in first 20 lines for a "City, Region" pattern
+  let location = ''
+  for (const line of lines.slice(0, 20)) {
+    const m = line.match(LOCATION_PATTERN)
+    if (m) {
+      location = m[1].trim()
+      break
+    }
+  }
+
+  return { title, location }
+}
+
 const TIME_RANGES = [
   { label: 'Last 24h', hours: 24 },
   { label: 'Last 3 days', hours: 72 },
@@ -53,11 +86,14 @@ export default function ScanPage() {
       setLocation(info.location || '')
       setStep('confirm')
     } catch {
-      // Still move to confirm step — user can type manually
+      // Backend unreachable — fall back to client-side regex extraction
+      const local = extractFromCVText(text)
       setExtracted(null)
-      setJobTitle('')
-      setLocation('')
-      setExtractError('Could not auto-detect your job title. Please fill in below.')
+      setJobTitle(local.title)
+      setLocation(local.location)
+      if (!local.title) {
+        setExtractError('Could not auto-detect your job title — please fill it in below.')
+      }
       setStep('confirm')
     } finally {
       setIsExtracting(false)
