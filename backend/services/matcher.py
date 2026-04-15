@@ -1,6 +1,5 @@
 """
-Score a CV against a job description.
-Combines vector similarity (Cohere embeddings) + LLM keyword analysis.
+Score a CV against a job description using LLM keyword analysis.
 """
 import asyncio
 import json
@@ -9,7 +8,6 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 
-from .embedder import embed_single, cosine_similarity
 from .ai_router import ai_complete
 
 logger = logging.getLogger(__name__)
@@ -64,24 +62,8 @@ async def score_match(
     """
     Score a CV against a job description and return a detailed MatchResult.
 
-    Steps:
-    1. Embed both texts in parallel (Cohere).
-    2. Compute cosine similarity as a baseline vector score.
-    3. Ask the LLM to analyse keyword overlap and produce a 0-100 score.
-    4. Blend: final_score = 0.4 * vector_score * 100 + 0.6 * llm_score.
-    5. Return fully populated MatchResult.
+    Uses LLM (Gemini) to analyse keyword overlap and produce a 0-100 score.
     """
-    # Step 1 — parallel embedding: CV uses "search_document", job uses "search_query"
-    cv_vec, job_vec = await asyncio.gather(
-        embed_single(cv_text, input_type="search_document"),
-        embed_single(job_description, input_type="search_query"),
-    )
-
-    # Step 2 — vector similarity (0.0 – 1.0)
-    vector_score: float = cosine_similarity(cv_vec, job_vec)
-    logger.info(f"matcher: vector_score={vector_score:.4f}")
-
-    # Step 3 — LLM keyword analysis
     prompt = _PROMPT_TEMPLATE.format(
         job_description=job_description,
         cv_text=cv_text,
@@ -92,24 +74,16 @@ async def score_match(
     matched_keywords: List[str] = []
     missing_keywords: List[str] = []
     llm_summary: str = ""
-    llm_score: int = int(vector_score * 100)  # safe default
+    final_score: int = 50  # safe default
 
     try:
         data = json.loads(cleaned)
-        llm_score = int(data.get("score", llm_score))
+        final_score = max(0, min(100, int(data.get("score", 50))))
         matched_keywords = [str(k) for k in data.get("matched_keywords", [])]
         missing_keywords = [str(k) for k in data.get("missing_keywords", [])]
         llm_summary = str(data.get("summary", ""))
     except (json.JSONDecodeError, KeyError, ValueError) as exc:
-        logger.warning(
-            f"matcher: LLM JSON parse failed ({exc}), using vector score only."
-        )
-        # Fallback: empty keyword lists, vector-only score already set above
-
-    # Step 5 — blended final score
-    final_score = int(0.4 * vector_score * 100 + 0.6 * llm_score)
-    # Clamp to [0, 100]
-    final_score = max(0, min(100, final_score))
+        logger.warning(f"matcher: LLM JSON parse failed ({exc}), using default score.")
 
     logger.info(
         f"matcher: llm_score={llm_score}, final_score={final_score} "
