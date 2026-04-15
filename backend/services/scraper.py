@@ -27,14 +27,22 @@ def _scrape_site(
     try:
         from jobspy import scrape_jobs as _scrape  # type: ignore
 
-        df = _scrape(
-            site_name=[site],
-            search_term=job_title,
-            location=location,
-            results_wanted=results_per_site,
-            hours_old=hours_old,
-            country_indeed="USA",
-        )
+        kwargs: dict = {
+            "site_name": [site],
+            "search_term": job_title,
+            "location": location,
+            "results_wanted": results_per_site,
+            "country_indeed": "USA",
+        }
+        try:
+            import inspect
+            sig = inspect.signature(_scrape)
+            if "hours_old" in sig.parameters:
+                kwargs["hours_old"] = hours_old
+        except Exception:
+            pass  # older jobspy — skip hours_old
+
+        df = _scrape(**kwargs)
 
         if df is None or df.empty:
             logger.info("scraper: %s returned 0 results", site)

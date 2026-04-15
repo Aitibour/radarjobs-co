@@ -32,7 +32,7 @@ _PROMPT_TEMPLATE = """\
 You are a professional CV parser. Extract structured information from the CV text below.
 
 Return ONLY a valid JSON object with exactly these keys:
-- "title": string — the candidate's most recent or most relevant job title (e.g. "Senior Software Engineer")
+- "title": string — the candidate's current or most recent job title. Must be a SHORT role name, 2-6 words maximum (e.g. "Senior Software Engineer", "Product Manager", "Full Stack Developer", "Data Scientist"). Extract the role name ONLY — do NOT include company name, description sentences, or tasks.
 - "location": string — the candidate's current city/country as a short location string (e.g. "London, UK" or "New York, NY"). Leave empty string "" if not found.
 - "skills": array of strings — all technical and soft skills mentioned, deduplicated
 - "experience_years": integer — total years of professional experience (estimate if not explicit)

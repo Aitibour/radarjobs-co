@@ -154,6 +154,9 @@ def _upsert_results(
 # Route
 # ---------------------------------------------------------------------------
 
+_SCAN_TIMEOUT_SECONDS = 90  # browser gets a 504 rather than a dropped connection
+
+
 @router.post("", response_model=ScanResponse)
 async def run_scan(
     request: ScanRequest,
@@ -164,15 +167,34 @@ async def run_scan(
 
     Authentication is optional.  If a valid Bearer JWT is present the results
     are persisted to Supabase; otherwise they are returned in-memory only.
+    Hard timeout: 90 s — returns 504 instead of dropping the connection.
     """
     if not request.cv_text.strip():
         raise HTTPException(status_code=422, detail="cv_text must not be empty")
     if not request.job_title.strip():
         raise HTTPException(status_code=422, detail="job_title must not be empty")
 
+    try:
+        return await asyncio.wait_for(
+            _run_scan_pipeline(request, authorization),
+            timeout=_SCAN_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.error("scan: pipeline timed out after %ds", _SCAN_TIMEOUT_SECONDS)
+        raise HTTPException(
+            status_code=504,
+            detail=f"Scan timed out after {_SCAN_TIMEOUT_SECONDS}s. Try a narrower search.",
+        )
+
+
+async def _run_scan_pipeline(
+    request: ScanRequest,
+    authorization: Optional[str],
+) -> ScanResponse:
+    """Inner pipeline extracted so run_scan can wrap it in wait_for."""
     # 1. Parse CV
     try:
-        parsed_cv = cv_parser.parse_cv(request.cv_text)
+        parsed_cv = await cv_parser.parse_cv(request.cv_text)
     except Exception as exc:
         logger.error("scan: cv_parser failed — %s", exc)
         raise HTTPException(status_code=500, detail="Failed to parse CV") from exc
