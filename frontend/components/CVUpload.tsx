@@ -37,10 +37,35 @@ export default function CVUpload({ onTextExtracted, className }: CVUploadProps) 
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i)
             const content = await page.getTextContent()
-            const pageText = content.items
-              .map((item) => ('str' in item ? item.str : ''))
-              .join(' ')
-            pageTexts.push(pageText)
+
+            // Group text items by Y-position to reconstruct real lines.
+            // pdfjs items each have a transform[5] = Y coordinate (PDF space, bottom-up).
+            // Items within ~3pt of each other are on the same line.
+            type TextItem = { str: string; transform: number[] }
+            const items = content.items.filter(
+              (it): it is TextItem => 'str' in it && (it as TextItem).str.trim() !== ''
+            )
+
+            // Sort top-to-bottom (higher Y = higher on page in PDF space)
+            items.sort((a, b) => b.transform[5] - a.transform[5])
+
+            const lines: string[] = []
+            let currentLine = ''
+            let lastY: number | null = null
+
+            for (const item of items) {
+              const y = item.transform[5]
+              if (lastY === null || Math.abs(y - lastY) > 3) {
+                if (currentLine.trim()) lines.push(currentLine.trim())
+                currentLine = item.str
+              } else {
+                currentLine += ' ' + item.str
+              }
+              lastY = y
+            }
+            if (currentLine.trim()) lines.push(currentLine.trim())
+
+            pageTexts.push(lines.join('\n'))
           }
           text = pageTexts.join('\n\n')
         } else {

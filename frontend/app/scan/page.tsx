@@ -326,6 +326,20 @@ export default function ScanPage() {
               )}
             </button>
 
+            {/* Error — shown above animation so it's always visible */}
+            {scanError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>
+                  {scanError.toLowerCase().includes('fetch')
+                    ? 'Cannot reach the backend. Make sure the API server is running and NEXT_PUBLIC_API_URL is set correctly.'
+                    : scanError}
+                </span>
+              </div>
+            )}
+
             {/* Scanning animation */}
             {isScanning && (
               <div className="bg-teal-light rounded-2xl p-6 flex flex-col items-center gap-4">
@@ -353,14 +367,6 @@ export default function ScanPage() {
               </div>
             )}
 
-            {scanError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
-                <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {scanError}
-              </div>
-            )}
           </div>
         )}
 
