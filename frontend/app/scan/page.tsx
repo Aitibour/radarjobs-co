@@ -11,31 +11,34 @@ import clsx from 'clsx'
 type Step = 'upload' | 'confirm' | 'results'
 
 // ── Client-side fallback extraction (used when backend is unreachable) ──────
-const TITLE_KEYWORDS = /\b(engineer|developer|designer|manager|analyst|architect|scientist|consultant|director|lead|senior|junior|full.?stack|frontend|backend|devops|product|software|data|cloud|security|mobile|qa|test|ux|ui|research)\b/i
-const LOCATION_PATTERN = /\b([A-Z][a-zA-Z\s]+,\s*(?:[A-Z]{2}|[A-Z][a-zA-Z]+))\b/
+// English + French role keywords
+const TITLE_KEYWORDS = /\b(engineer|developer|designer|manager|analyst|architect|scientist|consultant|director|lead|senior|junior|full.?stack|frontend|backend|devops|product|software|data|cloud|security|mobile|qa|test|ux|ui|research|ingénieur|développeur|chargé|chef|responsable|coordinateur|technicien|architecte|analyste|directeur|gestionnaire|support|infrastructure|projet|réseau|système|spécialiste|administrateur|conseiller|agent)\b/i
+
+// Strict: "Montréal, QC" — Unicode word chars + exactly 2 uppercase letters after comma
+const LOCATION_PATTERN = /([\w\u00C0-\u024F][\w\u00C0-\u024F\s]{1,20}),\s*([A-Z]{2})\b/
 
 function extractFromCVText(text: string): { title: string; location: string } {
-  const lines = text
-    .split(/\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
+  const lines = text.split(/\n/).map((l) => l.trim()).filter((l) => l.length > 0)
 
-  // Title: look in first 15 lines for a short line matching role keywords
+  // Title: skip line 0 (name), look in lines 1-11
   let title = ''
-  for (const line of lines.slice(0, 15)) {
+  for (const line of lines.slice(1, 12)) {
+    if (/@|\u2022|linkedin|http|\+\d/.test(line)) continue  // skip contact lines
+    if (/^\d/.test(line)) continue                          // skip lines starting with digits
+    if (line === line.toUpperCase() && line.length > 6) continue  // skip ALL-CAPS headers
     const wordCount = line.split(/\s+/).length
-    if (wordCount >= 2 && wordCount <= 7 && TITLE_KEYWORDS.test(line) && line.length < 60) {
-      title = line.replace(/[|•·\/\\,]+$/, '').trim()
+    if (wordCount >= 2 && wordCount <= 12 && TITLE_KEYWORDS.test(line) && line.length < 80) {
+      title = line.split(',')[0].trim()  // take part before first comma
       break
     }
   }
 
-  // Location: look in first 20 lines for a "City, Region" pattern
+  // Location: "City, 2-LETTER-CODE" pattern in first 6 lines
   let location = ''
-  for (const line of lines.slice(0, 20)) {
+  for (const line of lines.slice(0, 6)) {
     const m = line.match(LOCATION_PATTERN)
     if (m) {
-      location = m[1].trim()
+      location = `${m[1].trim()}, ${m[2]}`
       break
     }
   }
