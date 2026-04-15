@@ -1,9 +1,18 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+export interface ExtractResponse {
+  title: string
+  location: string
+  skills: string[]
+  experience_years: number
+  summary: string
+}
+
 export interface ScanRequest {
   cv_text: string
   job_title: string
   location: string
+  hours_old?: number
 }
 
 export interface JobMatch {
@@ -45,6 +54,15 @@ async function fetchWithAuth(
     ...options.headers,
   }
   return fetch(`${API_URL}${path}`, { ...options, headers })
+}
+
+export async function extractCV(cv_text: string, token?: string): Promise<ExtractResponse> {
+  const res = await fetchWithAuth('/scan/extract', {
+    method: 'POST',
+    body: JSON.stringify({ cv_text }),
+  }, token)
+  if (!res.ok) throw new Error(`CV extraction failed: ${res.statusText}`)
+  return res.json()
 }
 
 export async function scanCV(data: ScanRequest, token?: string): Promise<ScanResponse> {

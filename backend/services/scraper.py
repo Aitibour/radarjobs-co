@@ -18,6 +18,7 @@ def _scrape_site(
     job_title: str,
     location: str,
     results_per_site: int,
+    hours_old: int = 72,
 ) -> List[Dict[str, Any]]:
     """
     Synchronous per-site scrape. Runs inside a ThreadPoolExecutor worker.
@@ -31,6 +32,7 @@ def _scrape_site(
             search_term=job_title,
             location=location,
             results_wanted=results_per_site,
+            hours_old=hours_old,
             country_indeed="USA",
         )
 
@@ -97,6 +99,7 @@ async def scrape_jobs(
     job_title: str,
     location: str,
     results_per_site: int = 15,
+    hours_old: int = 72,
 ) -> List[Dict[str, Any]]:
     """
     Scrape jobs from LinkedIn, Indeed, Glassdoor, and Google concurrently.
@@ -108,6 +111,7 @@ async def scrape_jobs(
         job_title:         Search term / role title.
         location:          Location string (e.g. "New York, NY" or "Remote").
         results_per_site:  Max results requested from each board (default 15).
+        hours_old:         Only return jobs posted within this many hours (default 72).
 
     Returns:
         List of job dicts with keys: title, company, location, description,
@@ -124,6 +128,7 @@ async def scrape_jobs(
             job_title,
             location,
             results_per_site,
+            hours_old,
         )
         for site in _SITES
     ]

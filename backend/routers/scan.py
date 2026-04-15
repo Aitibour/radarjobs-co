@@ -23,10 +23,23 @@ router = APIRouter(tags=["scan"])
 # Request / Response schemas
 # ---------------------------------------------------------------------------
 
+class ExtractRequest(BaseModel):
+    cv_text: str
+
+
+class ExtractResponse(BaseModel):
+    title: str
+    location: str
+    skills: List[str]
+    experience_years: int
+    summary: str
+
+
 class ScanRequest(BaseModel):
     cv_text: str
     job_title: str
     location: str = "United States"
+    hours_old: int = 72  # 24 = last day, 72 = last 3 days, 168 = last week
 
 
 class JobMatchResponse(BaseModel):
@@ -166,7 +179,9 @@ async def run_scan(
 
     # 2. Scrape jobs
     try:
-        jobs = await scraper.scrape_jobs(request.job_title, request.location)
+        jobs = await scraper.scrape_jobs(
+            request.job_title, request.location, hours_old=request.hours_old
+        )
     except Exception as exc:
         logger.error("scan: scraper failed — %s", exc)
         raise HTTPException(status_code=502, detail="Job scraping failed") from exc
@@ -235,4 +250,29 @@ async def run_scan(
         matches=match_responses,
         cv_title=parsed_cv.title,
         cv_skills=parsed_cv.skills,
+    )
+
+
+@router.post("/extract", response_model=ExtractResponse)
+async def extract_cv(request: ExtractRequest) -> ExtractResponse:
+    """
+    Parse a CV and return extracted title, location, and skills.
+    Used by the frontend to pre-populate the confirm step before scanning.
+    No job scraping — fast response.
+    """
+    if not request.cv_text.strip():
+        raise HTTPException(status_code=422, detail="cv_text must not be empty")
+
+    try:
+        parsed = await cv_parser.parse_cv(request.cv_text)
+    except Exception as exc:
+        logger.error("extract: cv_parser failed — %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to parse CV") from exc
+
+    return ExtractResponse(
+        title=parsed.title,
+        location=parsed.location,
+        skills=parsed.skills,
+        experience_years=parsed.experience_years,
+        summary=parsed.summary,
     )

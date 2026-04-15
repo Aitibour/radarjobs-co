@@ -32,7 +32,8 @@ _PROMPT_TEMPLATE = """\
 You are a professional CV parser. Extract structured information from the CV text below.
 
 Return ONLY a valid JSON object with exactly these keys:
-- "title": string — the candidate's most recent or most relevant job title
+- "title": string — the candidate's most recent or most relevant job title (e.g. "Senior Software Engineer")
+- "location": string — the candidate's current city/country as a short location string (e.g. "London, UK" or "New York, NY"). Leave empty string "" if not found.
 - "skills": array of strings — all technical and soft skills mentioned, deduplicated
 - "experience_years": integer — total years of professional experience (estimate if not explicit)
 - "summary": string — a 2-sentence professional summary of the candidate
@@ -49,6 +50,7 @@ CV TEXT:
 @dataclass
 class ParsedCV:
     title: str
+    location: str
     skills: List[str]
     experience_years: int
     summary: str
@@ -92,6 +94,7 @@ async def parse_cv(cv_text: str) -> ParsedCV:
     try:
         data = json.loads(cleaned)
         title = str(data.get("title", "Unknown"))
+        location = str(data.get("location", ""))
         skills = [str(s) for s in data.get("skills", [])]
         experience_years = int(data.get("experience_years", 0))
         summary = str(data.get("summary", ""))
@@ -100,12 +103,14 @@ async def parse_cv(cv_text: str) -> ParsedCV:
             f"cv_parser: LLM JSON parse failed ({exc}), falling back to regex extraction."
         )
         title = "Unknown"
+        location = ""
         skills = _fallback_skills(cv_text)
         experience_years = 0
         summary = ""
 
     return ParsedCV(
         title=title,
+        location=location,
         skills=skills,
         experience_years=experience_years,
         summary=summary,
