@@ -86,7 +86,7 @@ async def score_match(
         logger.warning(f"matcher: LLM JSON parse failed ({exc}), using default score.")
 
     logger.info(
-        f"matcher: llm_score={llm_score}, final_score={final_score} "
+        f"matcher: final_score={final_score} "
         f"for job_title='{job_title}' company='{company}'"
     )
 
