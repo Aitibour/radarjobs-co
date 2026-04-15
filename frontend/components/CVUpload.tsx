@@ -41,10 +41,11 @@ export default function CVUpload({ onTextExtracted, className }: CVUploadProps) 
             // Group text items by Y-position to reconstruct real lines.
             // pdfjs items each have a transform[5] = Y coordinate (PDF space, bottom-up).
             // Items within ~3pt of each other are on the same line.
-            type TextItem = { str: string; transform: number[] }
-            const items = content.items.filter(
-              (it): it is TextItem => 'str' in it && (it as TextItem).str.trim() !== ''
-            )
+            interface PdfTextItem { str: string; transform: number[] }
+            const items: PdfTextItem[] = content.items
+              .filter((it) => 'str' in it && 'transform' in it)
+              .map((it) => it as unknown as PdfTextItem)
+              .filter((it) => it.str.trim() !== '')
 
             // Sort top-to-bottom (higher Y = higher on page in PDF space)
             items.sort((a, b) => b.transform[5] - a.transform[5])
