@@ -54,6 +54,7 @@ class JobMatchResponse(BaseModel):
     location: Optional[str] = None
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
+    description: Optional[str] = None
 
 
 class ScanResponse(BaseModel):
@@ -264,6 +265,7 @@ async def _run_scan_pipeline(
                 location=job_meta.get("location"),
                 salary_min=job_meta.get("salary_min"),
                 salary_max=job_meta.get("salary_max"),
+                description=(job_meta.get("description") or "")[:3000],
             )
         )
 
@@ -298,3 +300,97 @@ async def extract_cv(request: ExtractRequest) -> ExtractResponse:
         experience_years=parsed.experience_years,
         summary=parsed.summary,
     )
+
+
+# ---------------------------------------------------------------------------
+# AI enhancement endpoints
+# ---------------------------------------------------------------------------
+
+class EnhanceCVRequest(BaseModel):
+    cv_text: str
+    missing_keywords: List[str]
+    job_title: str = ""
+    company: str = ""
+
+
+class EnhanceCVResponse(BaseModel):
+    enhanced_cv: str
+
+
+class CoverLetterRequest(BaseModel):
+    cv_text: str
+    job_title: str
+    company: str
+    job_description: str
+
+
+class CoverLetterResponse(BaseModel):
+    cover_letter: str
+
+
+@router.post("/enhance-cv", response_model=EnhanceCVResponse)
+async def enhance_cv(request: EnhanceCVRequest) -> EnhanceCVResponse:
+    """Add missing keywords naturally into the CV text using Gemini."""
+    if not request.cv_text.strip():
+        raise HTTPException(status_code=422, detail="cv_text must not be empty")
+    if not request.missing_keywords:
+        return EnhanceCVResponse(enhanced_cv=request.cv_text)
+
+    keywords_str = ", ".join(request.missing_keywords)
+    prompt = f"""You are a professional CV writer. Enhance the CV below by naturally incorporating the missing skills/keywords listed.
+
+Rules:
+- Do NOT invent fake experience or change facts
+- Integrate keywords naturally where relevant (skills section, bullet points, summaries)
+- Keep the same structure and format
+- Add a Skills section at the top if one does not exist
+- Return ONLY the enhanced CV text, no explanations
+
+Missing keywords to add: {keywords_str}
+
+CV:
+---
+{request.cv_text[:4000]}
+---"""
+    try:
+        import services.ai_router as ai_router
+        enhanced = await ai_router.ai_complete(prompt)
+        return EnhanceCVResponse(enhanced_cv=enhanced.strip())
+    except Exception as exc:
+        logger.error("enhance_cv: failed — %s", exc)
+        raise HTTPException(status_code=500, detail="CV enhancement failed") from exc
+
+
+@router.post("/cover-letter", response_model=CoverLetterResponse)
+async def generate_cover_letter(request: CoverLetterRequest) -> CoverLetterResponse:
+    """Generate a tailored cover letter using Gemini."""
+    if not request.cv_text.strip():
+        raise HTTPException(status_code=422, detail="cv_text must not be empty")
+
+    prompt = f"""Write a professional cover letter for the following job application.
+
+Job Title: {request.job_title}
+Company: {request.company}
+Job Description:
+---
+{request.job_description[:2000]}
+---
+
+Candidate CV:
+---
+{request.cv_text[:3000]}
+---
+
+Rules:
+- 3-4 paragraphs, professional tone
+- Reference specific skills from the CV that match the job
+- Do NOT invent experience
+- Include a strong opening and closing
+- Return ONLY the cover letter text, no subject line or email headers"""
+    try:
+        import services.ai_router as ai_router
+        letter = await ai_router.ai_complete(prompt)
+        return CoverLetterResponse(cover_letter=letter.strip())
+    except Exception as exc:
+        logger.error("cover_letter: failed — %s", exc)
+        raise HTTPException(status_code=500, detail="Cover letter generation failed") from exc
