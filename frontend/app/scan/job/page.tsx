@@ -177,7 +177,8 @@ async function downloadWord(text: string, filename: string) {
   const DARK = '1C1C1C'
   const GRAY = '6E6E6E'
 
-  const paragraphs: Paragraph[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const paragraphs: any[] = []
   const lines = text.split('\n')
   let nb = 0
   let stage = 0
