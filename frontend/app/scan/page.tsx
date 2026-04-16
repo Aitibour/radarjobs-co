@@ -9,6 +9,7 @@ import type { JobMatch, ScanResponse, ExtractResponse } from '@/lib/api'
 import clsx from 'clsx'
 
 type Step = 'upload' | 'confirm' | 'results'
+type InputMode = 'cv' | 'manual'
 
 // ── Client-side fallback extraction (used when backend is unreachable) ──────
 // English + French role keywords
@@ -54,6 +55,7 @@ const TIME_RANGES = [
 
 export default function ScanPage() {
   const [step, setStep] = useState<Step>('upload')
+  const [inputMode, setInputMode] = useState<InputMode>('cv')
 
   // Step 1 — CV
   const [cvText, setCvText] = useState('')
@@ -112,13 +114,14 @@ export default function ScanPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
+      const effectiveCvText = cvText.trim() || `Candidate searching for: ${jobTitle}`
       const response = await scanCV(
-        { cv_text: cvText, job_title: jobTitle, location: location || 'United States', hours_old: hoursOld },
+        { cv_text: effectiveCvText, job_title: jobTitle, location: location || 'United States', hours_old: hoursOld },
         token
       )
       sessionStorage.setItem('radarjobs_scan', JSON.stringify({
         matches: response.matches,
-        cvText,
+        cvText: effectiveCvText,
         jobTitle,
         location,
       }))
@@ -145,6 +148,13 @@ export default function ScanPage() {
     setScanError(null)
     setExtractError(null)
     setMinScore(0)
+  }
+
+  const handleManualProceed = () => {
+    if (!jobTitle.trim()) return
+    setExtracted(null)
+    setExtractError(null)
+    setStep('confirm')
   }
 
   return (
@@ -193,30 +203,112 @@ export default function ScanPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
 
-          {/* ── STEP 1: Upload ── */}
+          {/* ── STEP 1: Upload / Manual ── */}
           {step === 'upload' && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Upload your CV</h2>
-              <p className="text-gray-500 text-sm mb-6">
-                We&apos;ll automatically detect your job title and location from your CV.
-              </p>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Mode toggle tabs */}
+              <div className="flex border-b border-gray-100">
+                <button
+                  onClick={() => setInputMode('cv')}
+                  className={clsx(
+                    'flex-1 py-3 text-sm font-semibold transition-colors',
+                    inputMode === 'cv'
+                      ? 'text-teal-dark border-b-2 border-teal-dark bg-teal-light/30'
+                      : 'text-gray-400 hover:text-gray-600'
+                  )}
+                >
+                  Match via CV
+                </button>
+                <button
+                  onClick={() => setInputMode('manual')}
+                  className={clsx(
+                    'flex-1 py-3 text-sm font-semibold transition-colors',
+                    inputMode === 'manual'
+                      ? 'text-teal-dark border-b-2 border-teal-dark bg-teal-light/30'
+                      : 'text-gray-400 hover:text-gray-600'
+                  )}
+                >
+                  Type manually
+                </button>
+              </div>
 
-              {isExtracting ? (
-                <div className="flex flex-col items-center gap-4 py-16">
-                  <div className="relative w-20 h-20">
-                    <svg className="w-20 h-20 animate-spin" viewBox="0 0 80 80" fill="none">
-                      <circle cx="40" cy="40" r="36" stroke="#E1F5EE" strokeWidth="3" />
-                      <circle cx="40" cy="40" r="24" stroke="#E1F5EE" strokeWidth="2" />
-                      <circle cx="40" cy="40" r="12" stroke="#E1F5EE" strokeWidth="2" />
-                      <path d="M40 40 L40 4 A36 36 0 0 1 76 40 Z" fill="#5DCAA5" fillOpacity="0.5" />
-                      <circle cx="40" cy="40" r="3" fill="#1D9E75" />
-                    </svg>
-                  </div>
-                  <p className="font-bold text-teal-dark text-lg">Analysing your CV…</p>
-                  <p className="text-sm text-gray-400">Detecting your role, location and skills</p>
+              {/* CV upload mode */}
+              {inputMode === 'cv' && (
+                <div className="p-8">
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Upload your CV</h2>
+                  <p className="text-gray-500 text-sm mb-6">
+                    We&apos;ll automatically detect your job title and location from your CV.
+                  </p>
+                  {isExtracting ? (
+                    <div className="flex flex-col items-center gap-4 py-12">
+                      <div className="relative w-20 h-20">
+                        <svg className="w-20 h-20 animate-spin" viewBox="0 0 80 80" fill="none">
+                          <circle cx="40" cy="40" r="36" stroke="#E1F5EE" strokeWidth="3" />
+                          <circle cx="40" cy="40" r="24" stroke="#E1F5EE" strokeWidth="2" />
+                          <circle cx="40" cy="40" r="12" stroke="#E1F5EE" strokeWidth="2" />
+                          <path d="M40 40 L40 4 A36 36 0 0 1 76 40 Z" fill="#5DCAA5" fillOpacity="0.5" />
+                          <circle cx="40" cy="40" r="3" fill="#1D9E75" />
+                        </svg>
+                      </div>
+                      <p className="font-bold text-teal-dark text-lg">Analysing your CV…</p>
+                      <p className="text-sm text-gray-400">Detecting your role, location and skills</p>
+                    </div>
+                  ) : (
+                    <CVUpload onTextExtracted={handleTextExtracted} />
+                  )}
                 </div>
-              ) : (
-                <CVUpload onTextExtracted={handleTextExtracted} />
+              )}
+
+              {/* Manual entry mode */}
+              {inputMode === 'manual' && (
+                <div className="p-8 flex flex-col gap-4">
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Search by title</h2>
+                  <p className="text-gray-500 text-sm -mt-2">
+                    Enter the role you&apos;re targeting and your location to start scanning.
+                  </p>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                      Job title <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleManualProceed()}
+                      placeholder="e.g. Software Engineer"
+                      className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                      Location <span className="text-gray-300 font-normal normal-case">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleManualProceed()}
+                      placeholder="e.g. Montreal, QC or Remote"
+                      className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleManualProceed}
+                    disabled={!jobTitle.trim()}
+                    className={clsx(
+                      'w-full py-3.5 rounded-xl font-bold text-base transition-all',
+                      jobTitle.trim()
+                        ? 'bg-teal-dark text-white hover:bg-teal-mid'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    )}
+                  >
+                    Continue →
+                  </button>
+                </div>
               )}
             </div>
           )}

@@ -5,6 +5,7 @@ Returns a list of standardized job dicts.
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
@@ -24,6 +25,46 @@ def _hours_old_to_date_posted(hours_old: int) -> str:
     if hours_old <= 72:
         return "3days"
     return "week"
+
+
+def _sanitize_query(text: str) -> str:
+    """Clean query string for JSearch: replace & with 'and', collapse whitespace."""
+    text = text.replace("&", "and").replace("+", "plus")
+    text = re.sub(r"[^\w\s,.\-éèêëàâùûüôîïœçÉÈÊËÀÂÙÛÜÔÎÏŒÇ]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+async def _fetch_jsearch(
+    query: str,
+    date_posted: Optional[str],
+    num_pages: int,
+    headers: dict,
+) -> List[Dict[str, Any]]:
+    """Single JSearch request; returns raw data list or empty list on error."""
+    params: Dict[str, str] = {
+        "query": query,
+        "num_pages": str(num_pages),
+        "employment_types": "FULLTIME,PARTTIME,CONTRACTOR",
+    }
+    if date_posted:
+        params["date_posted"] = date_posted
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.get(_JSEARCH_URL, headers=headers, params=params)
+
+        if response.status_code == 429:
+            logger.warning("scraper: JSearch rate-limited (429)")
+            return []
+        if response.status_code != 200:
+            logger.warning("scraper: JSearch returned HTTP %d: %s", response.status_code, response.text[:200])
+            return []
+
+        return response.json().get("data", [])
+
+    except Exception as exc:
+        logger.warning("scraper: JSearch request failed — %s", exc)
+        return []
 
 
 async def scrape_jobs(
@@ -50,7 +91,9 @@ async def scrape_jobs(
         logger.error("scraper: RAPIDAPI_KEY not set")
         return []
 
-    query = f"{job_title} in {location}"
+    clean_title = _sanitize_query(job_title)
+    clean_location = _sanitize_query(location)
+    query = f"{clean_title} in {clean_location}"
     date_posted = _hours_old_to_date_posted(hours_old)
 
     # JSearch returns 10 results per page; request enough pages to hit results_per_site
@@ -60,30 +103,19 @@ async def scrape_jobs(
         "X-RapidAPI-Key": api_key,
         "X-RapidAPI-Host": _JSEARCH_HOST,
     }
-    params = {
-        "query": query,
-        "num_pages": str(num_pages),
-        "date_posted": date_posted,
-        "employment_types": "FULLTIME,PARTTIME,CONTRACTOR",
-    }
 
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            response = await client.get(_JSEARCH_URL, headers=headers, params=params)
+    # First attempt: with date filter
+    raw_jobs = await _fetch_jsearch(query, date_posted, num_pages, headers)
 
-        if response.status_code == 429:
-            logger.warning("scraper: JSearch rate-limited (429)")
-            return []
-        if response.status_code != 200:
-            logger.warning("scraper: JSearch returned HTTP %d: %s", response.status_code, response.text[:200])
-            return []
+    # Fallback 1: if 0 results, relax date filter
+    if not raw_jobs and date_posted != "week":
+        logger.info("scraper: 0 results for date_posted=%s, retrying with 'week'", date_posted)
+        raw_jobs = await _fetch_jsearch(query, "week", num_pages, headers)
 
-        data = response.json()
-        raw_jobs = data.get("data", [])
-
-    except Exception as exc:
-        logger.warning("scraper: JSearch request failed — %s", exc)
-        return []
+    # Fallback 2: still 0, drop date filter entirely
+    if not raw_jobs:
+        logger.info("scraper: 0 results with date filter, retrying without")
+        raw_jobs = await _fetch_jsearch(query, None, num_pages, headers)
 
     jobs: List[Dict[str, Any]] = []
     seen_urls: set = set()
