@@ -24,7 +24,9 @@ def _hours_old_to_date_posted(hours_old: int) -> str:
         return "today"
     if hours_old <= 72:
         return "3days"
-    return "week"
+    if hours_old <= 168:
+        return "week"
+    return "month"  # 360h (15 days) → month is the closest JSearch option
 
 
 def _sanitize_query(text: str) -> str:

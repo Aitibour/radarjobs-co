@@ -203,7 +203,9 @@ async def _run_scan_pipeline(
     # 2. Scrape jobs
     try:
         jobs = await scraper.scrape_jobs(
-            request.job_title, request.location, hours_old=request.hours_old
+            request.job_title, request.location,
+            results_per_site=30,
+            hours_old=request.hours_old,
         )
     except Exception as exc:
         logger.error("scan: scraper failed — %s", exc)
