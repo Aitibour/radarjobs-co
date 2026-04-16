@@ -333,26 +333,48 @@ async def enhance_cv(request: EnhanceCVRequest) -> EnhanceCVResponse:
         return EnhanceCVResponse(enhanced_cv=request.cv_text)
 
     keywords_str = ", ".join(request.missing_keywords)
-    prompt = f"""You are a professional Canadian CV writer. Rewrite the CV below incorporating the missing keywords, formatted as a clean ATS-friendly Canadian resume.
+    prompt = f"""You are a professional Canadian CV writer. Rewrite and enhance the CV below to match this EXACT template structure. Output plain text only.
 
-CRITICAL FORMATTING RULES:
-- Use ONLY the bullet character "•" for list items — NEVER use dashes (-) or asterisks (*) as bullets
-- Section headers in ALL CAPS: PROFESSIONAL SUMMARY, EXPERIENCE, EDUCATION, SKILLS & COMPETENCIES, CERTIFICATIONS
-- No markdown, no bold/italic markup, no tables, no columns — plain text only, fully ATS optimized
-- Name on line 1, contact info (city, phone, email, LinkedIn) on lines 2-3
-- Each job entry: "Job Title | Company | City | YYYY – YYYY" on one line, then bullet achievements below
-- Do NOT invent experience or change any facts
-- Naturally weave in the missing keywords where genuinely relevant (skills, summary, achievements)
-- Every bullet point must start with an action verb or a keyword — no filler text
+TEMPLATE STRUCTURE (output in this exact order):
+LINE 1: FULL NAME IN CAPS (preserve from CV)
+LINE 2: Current Role / Job Title as a descriptive subtitle (mixed case, not ALL CAPS)
+LINE 3: City, Province | Phone | Email | LinkedIn URL
+(blank line)
+PROFESSIONAL SUMMARY
+One to two sentences highlighting key expertise. Naturally incorporate relevant missing keywords.
 
-Missing keywords to add: {keywords_str}
+TECHNICAL COMPETENCIES
+Category 1: skill, skill, skill
+Category 2: skill, skill, skill
+(Group skills into 5-7 named categories — e.g. Virtualization, Systems, Cloud & Storage, Automation, Networking, Support & ITSM. Add missing keywords to the most relevant category.)
+
+PROFESSIONAL EXPERIENCE
+Job Title | Company | City, Province | YYYY – YYYY
+• Achievement or responsibility starting with action verb
+• Achievement or responsibility
+(Repeat for each role, newest first. Weave in missing keywords naturally where relevant.)
+
+CERTIFICATIONS
+Cert1 | Cert2 | Cert3 (pipe-separated on one line)
+
+EDUCATION
+Degree Name | Institution | City | YYYY – YYYY
+(one line per qualification)
+
+ABSOLUTE RULES:
+- Bullets use ONLY the "•" character — NEVER dashes (-) or asterisks (*)
+- Section headers exactly as shown above in ALL CAPS
+- NO markdown, NO bold/italic markup, NO tables, NO columns
+- Plain text only — 100% ATS compatible
+- Do NOT invent experience or alter any facts
+- Missing keywords to incorporate: {keywords_str}
 
 Original CV:
 ---
 {request.cv_text[:4000]}
 ---
 
-Return ONLY the enhanced CV text. No explanations, no preamble, no commentary."""
+Return ONLY the enhanced CV text. No preamble, no commentary."""
     try:
         import services.ai_router as ai_router
         enhanced = await ai_router.ai_complete(prompt)

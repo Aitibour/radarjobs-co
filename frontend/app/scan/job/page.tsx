@@ -9,7 +9,6 @@ import { getSupabaseClient } from '@/lib/supabase'
 type Status = 'saved' | 'applied' | null
 type Tab = 'overview' | 'cv' | 'cover-letter'
 
-// ── persistence ───────────────────────────────────────────────────────────
 function getStatuses(): Record<string, Status> {
   try { return JSON.parse(localStorage.getItem('radarjobs_statuses') ?? '{}') } catch { return {} }
 }
@@ -19,29 +18,267 @@ function persistStatus(url: string, status: Status) {
   localStorage.setItem('radarjobs_statuses', JSON.stringify(s))
 }
 
-// ── downloads ─────────────────────────────────────────────────────────────
+// ─── Styled PDF download matching the Canadian CV template ────────────────
 async function downloadPDF(text: string, filename: string) {
   const { jsPDF } = await import('jspdf')
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const margin = 15
-  const pageWidth = doc.internal.pageSize.getWidth() - margin * 2
-  doc.setFontSize(11)
-  const lines = doc.splitTextToSize(text, pageWidth)
-  let y = margin
-  for (const line of lines) {
-    if (y > 275) { doc.addPage(); y = margin }
-    doc.text(line, margin, y)
-    y += 6
+  const doc = new jsPDF({ unit: 'mm', format: 'letter' })
+
+  const M = 18
+  const PW = doc.internal.pageSize.getWidth()
+  const CW = PW - M * 2
+  let y = M
+
+  const T: [number, number, number] = [8, 80, 65]    // teal
+  const D: [number, number, number] = [28, 28, 28]    // dark
+  const G: [number, number, number] = [110, 110, 110] // gray
+
+  const chk = (need = 8) => { if (y + need > 248) { doc.addPage(); y = M } }
+
+  const lines = text.split('\n')
+  let nb = 0   // non-blank line count
+  let stage = 0 // 0=name 1=role 2=contact 3+=body
+
+  for (const raw of lines) {
+    const line = raw.trim()
+
+    if (!line) {
+      if (stage >= 3) y += 2
+      continue
+    }
+    nb++
+
+    // ── Name
+    if (nb === 1) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(21)
+      doc.setTextColor(...D)
+      doc.text(line, M, y)
+      y += 9; stage = 1; continue
+    }
+
+    // ── Role subtitle (second non-blank, mixed case)
+    if (nb === 2 && line !== line.toUpperCase()) {
+      doc.setFont('helvetica', 'italic')
+      doc.setFontSize(10)
+      doc.setTextColor(...T)
+      doc.text(line, M, y)
+      y += 4
+      doc.setDrawColor(...T); doc.setLineWidth(0.3)
+      doc.line(M, y, PW - M, y)
+      y += 5; stage = 2; continue
+    }
+
+    // ── Contact line
+    if (stage <= 2 && /@|linkedin|\+\d|\(\d{3}\)|\d{3}[-.\s]\d{3}/i.test(line)) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(...G)
+      doc.text(line, M, y)
+      y += 8; stage = 3; continue
+    }
+
+    if (stage < 3) stage = 3
+
+    // ── Section headers (ALL CAPS, no bullets, no pipes, no digits at start)
+    if (
+      line === line.toUpperCase() && line.length > 2 && line.length < 60 &&
+      !line.startsWith('•') && !/^\d/.test(line) && !line.includes('|')
+    ) {
+      chk(12); y += 3
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9.5)
+      doc.setTextColor(...T)
+      doc.text(line, M, y)
+      y += 2.5
+      doc.setDrawColor(...T); doc.setLineWidth(0.5)
+      doc.line(M, y, PW - M, y)
+      y += 5; continue
+    }
+
+    // ── Bullet points
+    if (line.startsWith('•')) {
+      chk(7)
+      const txt = line.replace(/^•\s*/, '')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9.5)
+      doc.setTextColor(...D)
+      const wrapped = doc.splitTextToSize(txt, CW - 7)
+      doc.text('•', M + 2, y)
+      doc.text(wrapped, M + 7, y)
+      y += wrapped.length * 5 + 1; continue
+    }
+
+    // ── Job line "Title | Company | City | YYYY – YYYY"
+    if (line.includes('|') && /\d{4}/.test(line)) {
+      chk(10); y += 2
+      const parts = line.split('|').map(p => p.trim())
+      const title = parts[0]
+      const rest = ' | ' + parts.slice(1).join(' | ')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.setTextColor(...D)
+      const tw = doc.getTextWidth(title)
+      doc.text(title, M, y)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9.5)
+      doc.setTextColor(...G)
+      if (tw + doc.getTextWidth(rest) < CW) {
+        doc.text(rest, M + tw, y)
+        y += 5.5
+      } else {
+        y += 5
+        const wrest = doc.splitTextToSize(parts.slice(1).join(' | '), CW - 4)
+        doc.text(wrest, M + 4, y)
+        y += wrest.length * 4.5 + 1
+      }
+      doc.setTextColor(...D); continue
+    }
+
+    // ── Skills category "Category: skill, skill"
+    if (/^[A-Za-z][A-Za-z\s&]+:\s/.test(line)) {
+      chk(7)
+      const ci = line.indexOf(':')
+      const cat = line.substring(0, ci)
+      const det = line.substring(ci + 1).trim()
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9.5)
+      doc.setTextColor(...T)
+      const cw2 = doc.getTextWidth(cat + ': ')
+      doc.text(cat + ': ', M, y)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...D)
+      const wrapped = doc.splitTextToSize(det, CW - cw2)
+      doc.text(wrapped[0] ?? '', M + cw2, y)
+      for (let i = 1; i < wrapped.length; i++) {
+        y += 5
+        doc.text(wrapped[i], M + cw2, y)
+      }
+      y += 5.5; continue
+    }
+
+    // ── Body text
+    chk(7)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...D)
+    const wrapped = doc.splitTextToSize(line, CW)
+    doc.text(wrapped, M, y)
+    y += wrapped.length * 5 + 1
   }
+
   doc.save(filename)
 }
 
+// ─── Styled Word download matching the Canadian CV template ───────────────
 async function downloadWord(text: string, filename: string) {
-  const { Document, Packer, Paragraph, TextRun } = await import('docx')
-  const paragraphs = text.split('\n').map(
-    (line) => new Paragraph({ children: [new TextRun(line)] })
-  )
-  const doc = new Document({ sections: [{ children: paragraphs }] })
+  const { Document, Packer, Paragraph, TextRun, BorderStyle } = await import('docx')
+
+  const TEAL = '085041'
+  const DARK = '1C1C1C'
+  const GRAY = '6E6E6E'
+
+  const paragraphs: Paragraph[] = []
+  const lines = text.split('\n')
+  let nb = 0
+  let stage = 0
+
+  for (const raw of lines) {
+    const line = raw.trim()
+
+    if (!line) {
+      paragraphs.push(new Paragraph({ text: '', spacing: { after: 80 } }))
+      continue
+    }
+    nb++
+
+    if (nb === 1) {
+      paragraphs.push(new Paragraph({
+        children: [new TextRun({ text: line, bold: true, size: 40, color: DARK })],
+        spacing: { after: 60 },
+      }))
+      stage = 1; continue
+    }
+
+    if (nb === 2 && line !== line.toUpperCase()) {
+      paragraphs.push(new Paragraph({
+        children: [new TextRun({ text: line, italics: true, size: 22, color: TEAL })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: TEAL, space: 4 } },
+        spacing: { after: 80 },
+      }))
+      stage = 2; continue
+    }
+
+    if (stage <= 2 && /@|linkedin|\+\d|\(\d{3}\)/i.test(line)) {
+      paragraphs.push(new Paragraph({
+        children: [new TextRun({ text: line, size: 17, color: GRAY })],
+        spacing: { after: 180 },
+      }))
+      stage = 3; continue
+    }
+
+    if (stage < 3) stage = 3
+
+    if (
+      line === line.toUpperCase() && line.length > 2 && line.length < 60 &&
+      !line.startsWith('•') && !/^\d/.test(line) && !line.includes('|')
+    ) {
+      paragraphs.push(new Paragraph({
+        children: [new TextRun({ text: line, bold: true, size: 20, color: TEAL })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: TEAL, space: 4 } },
+        spacing: { before: 240, after: 100 },
+      }))
+      continue
+    }
+
+    if (line.startsWith('•')) {
+      const txt = line.replace(/^•\s*/, '')
+      paragraphs.push(new Paragraph({
+        children: [new TextRun({ text: txt, size: 19, color: DARK })],
+        bullet: { level: 0 },
+        spacing: { after: 40 },
+      }))
+      continue
+    }
+
+    if (line.includes('|') && /\d{4}/.test(line)) {
+      const parts = line.split('|').map(p => p.trim())
+      paragraphs.push(new Paragraph({
+        children: [
+          new TextRun({ text: parts[0], bold: true, size: 20, color: DARK }),
+          new TextRun({ text: ' | ' + parts.slice(1).join(' | '), size: 18, color: GRAY }),
+        ],
+        spacing: { before: 120, after: 60 },
+      }))
+      continue
+    }
+
+    if (/^[A-Za-z][A-Za-z\s&]+:\s/.test(line)) {
+      const ci = line.indexOf(':')
+      const cat = line.substring(0, ci)
+      const det = line.substring(ci + 1).trim()
+      paragraphs.push(new Paragraph({
+        children: [
+          new TextRun({ text: cat + ': ', bold: true, size: 19, color: TEAL }),
+          new TextRun({ text: det, size: 19, color: DARK }),
+        ],
+        spacing: { after: 60 },
+      }))
+      continue
+    }
+
+    paragraphs.push(new Paragraph({
+      children: [new TextRun({ text: line, size: 19, color: DARK })],
+      spacing: { after: 60 },
+    }))
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: { page: { margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 } } },
+      children: paragraphs,
+    }],
+  })
+
   const blob = await Packer.toBlob(doc)
   const url = URL.createObjectURL(blob)
   const a = Object.assign(document.createElement('a'), { href: url, download: filename })
@@ -49,122 +286,101 @@ async function downloadWord(text: string, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-// ── CV template renderer ──────────────────────────────────────────────────
-const SECTION_HEADERS = /^(PROFESSIONAL SUMMARY|SUMMARY|EXPERIENCE|WORK EXPERIENCE|EDUCATION|SKILLS|SKILLS & COMPETENCIES|COMPETENCIES|CERTIFICATIONS|PROJECTS|LANGUAGES|REFERENCES|FORMATION|COMPÉTENCES|EXPÉRIENCE|PROJETS|BÉNÉVOLAT|VOLUNTEER|AWARDS|PUBLICATIONS|INTERESTS|OBJECTIVE|PROFILE)\s*:?\s*$/i
-
+// ─── CV template renderer ─────────────────────────────────────────────────
 function CVTemplate({ text }: { text: string }) {
   const lines = text.split('\n').map(l => l.trimEnd())
-  const sections: Array<{ type: 'name' | 'contact' | 'header' | 'job-line' | 'bullet' | 'body' | 'blank'; text: string }> = []
+  type El = { type: 'name'|'role'|'contact'|'header'|'job-line'|'skill-cat'|'bullet'|'body'|'blank'; text: string }
+  const els: El[] = []
+  let nb = 0
+  let stage = 0
 
-  let nameFound = false
-  let contactDone = false
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) { els.push({ type: 'blank', text: '' }); continue }
+    nb++
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const trimmed = line.trim()
+    if (nb === 1) { els.push({ type: 'name', text: line }); stage = 1; continue }
+    if (nb === 2 && line !== line.toUpperCase()) { els.push({ type: 'role', text: line }); stage = 2; continue }
+    if (stage <= 2 && /@|linkedin|\+\d|\(\d{3}\)/i.test(line)) { els.push({ type: 'contact', text: line }); stage = 3; continue }
+    if (stage < 3) stage = 3
 
-    if (!trimmed) {
-      sections.push({ type: 'blank', text: '' })
-      continue
+    if (line === line.toUpperCase() && line.length > 2 && line.length < 60 && !line.startsWith('•') && !/^\d/.test(line) && !line.includes('|')) {
+      els.push({ type: 'header', text: line }); continue
     }
-
-    if (!nameFound) {
-      sections.push({ type: 'name', text: trimmed })
-      nameFound = true
-      continue
-    }
-
-    // Contact lines: email, phone, linkedin, location (first few non-blank lines after name)
-    if (!contactDone && i < 7 && /[@|•|\||\/]|linkedin|github|\+\d|\(\d{3}\)|\d{3}[-.\s]\d{3}|montreal|toronto|canada|@/i.test(trimmed)) {
-      sections.push({ type: 'contact', text: trimmed })
-      continue
-    }
-
-    // Section headers
-    if (
-      SECTION_HEADERS.test(trimmed) ||
-      (trimmed === trimmed.toUpperCase() && trimmed.length > 2 && trimmed.length < 50 && !/^\d/.test(trimmed) && !/^•/.test(trimmed))
-    ) {
-      contactDone = true
-      sections.push({ type: 'header', text: trimmed })
-      continue
-    }
-
-    contactDone = true
-
-    // Bullet lines starting with •
-    if (/^•/.test(trimmed)) {
-      sections.push({ type: 'bullet', text: trimmed.replace(/^•\s*/, '') })
-      continue
-    }
-
-    // Job title lines: "Title | Company | City | YYYY – YYYY"
-    if (/\|/.test(trimmed) && /\d{4}/.test(trimmed)) {
-      sections.push({ type: 'job-line', text: trimmed })
-      continue
-    }
-
-    sections.push({ type: 'body', text: trimmed })
+    if (line.startsWith('•')) { els.push({ type: 'bullet', text: line.replace(/^•\s*/, '') }); continue }
+    if (line.includes('|') && /\d{4}/.test(line)) { els.push({ type: 'job-line', text: line }); continue }
+    if (/^[A-Za-z][A-Za-z\s&]+:\s/.test(line)) { els.push({ type: 'skill-cat', text: line }); continue }
+    els.push({ type: 'body', text: line })
   }
 
   return (
     <div className="font-sans text-gray-800 max-w-2xl mx-auto">
-      {sections.map((s, i) => {
+      {els.map((s, i) => {
         if (s.type === 'blank') return <div key={i} className="h-2.5" />
-        if (s.type === 'name') return (
-          <h1 key={i} className="text-2xl font-extrabold text-gray-900 tracking-tight mb-1">{s.text}</h1>
-        )
-        if (s.type === 'contact') return (
-          <p key={i} className="text-xs text-gray-500 mb-0.5">{s.text}</p>
-        )
+        if (s.type === 'name') return <h1 key={i} className="text-2xl font-extrabold text-gray-900 tracking-tight mb-1">{s.text}</h1>
+        if (s.type === 'role') return <p key={i} className="text-sm italic text-teal-dark mb-1 border-b border-teal-mid pb-1">{s.text}</p>
+        if (s.type === 'contact') return <p key={i} className="text-xs text-gray-500 mb-3">{s.text}</p>
         if (s.type === 'header') return (
           <div key={i} className="mt-5 mb-2 border-b-2 border-teal-mid pb-1">
             <h2 className="text-xs font-extrabold text-teal-dark uppercase tracking-widest">{s.text}</h2>
           </div>
         )
-        if (s.type === 'job-line') return (
-          <p key={i} className="text-sm font-semibold text-gray-900 mt-2 mb-1">{s.text}</p>
-        )
+        if (s.type === 'job-line') {
+          const parts = s.text.split('|').map(p => p.trim())
+          return (
+            <p key={i} className="text-sm mt-2 mb-0.5">
+              <span className="font-bold text-gray-900">{parts[0]}</span>
+              {parts.length > 1 && <span className="text-gray-500 font-normal"> | {parts.slice(1).join(' | ')}</span>}
+            </p>
+          )
+        }
+        if (s.type === 'skill-cat') {
+          const ci = s.text.indexOf(':')
+          const cat = s.text.substring(0, ci)
+          const det = s.text.substring(ci + 1).trim()
+          return (
+            <p key={i} className="text-sm mb-1 leading-relaxed">
+              <span className="font-bold text-teal-dark">{cat}: </span>
+              <span className="text-gray-700">{det}</span>
+            </p>
+          )
+        }
         if (s.type === 'bullet') return (
           <div key={i} className="flex gap-2 text-sm leading-relaxed mb-0.5 pl-1">
             <span className="text-teal-mid shrink-0 mt-0.5">•</span>
             <span className="text-gray-700">{s.text}</span>
           </div>
         )
-        return (
-          <p key={i} className="text-sm text-gray-600 leading-relaxed mb-0.5">{s.text}</p>
-        )
+        return <p key={i} className="text-sm text-gray-600 leading-relaxed mb-0.5">{s.text}</p>
       })}
     </div>
   )
 }
 
-// ── animated score counter ────────────────────────────────────────────────
+// ─── Animated score hook ──────────────────────────────────────────────────
 function useAnimatedScore(target: number, duration = 1400) {
   const [display, setDisplay] = useState(target)
-  const prevTarget = useRef(target)
-
+  const prev = useRef(target)
   useEffect(() => {
-    const start = prevTarget.current
+    const start = prev.current
     const end = target
-    prevTarget.current = target
+    prev.current = target
     if (start === end) return
     let step = 0
     const steps = 50
-    const interval = setInterval(() => {
+    const iv = setInterval(() => {
       step++
       const t = step / steps
       const eased = 1 - Math.pow(1 - t, 3)
       setDisplay(Math.round(start + (end - start) * eased))
-      if (step >= steps) clearInterval(interval)
+      if (step >= steps) clearInterval(iv)
     }, duration / steps)
-    return () => clearInterval(interval)
+    return () => clearInterval(iv)
   }, [target, duration])
-
   return display
 }
 
-// ── main component ────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────
 function JobDetailInner() {
   const router = useRouter()
   const params = useSearchParams()
@@ -213,13 +429,10 @@ function JobDetailInner() {
       const result = await enhanceCV(cvText, job.missing_keywords, job.job_title, job.company, session?.access_token)
       setEnhancedCV(result)
       setKeywordsAdded(true)
-      // Estimate new score: each missing keyword added ≈ +4 pts, capped at 98
       const estimated = Math.min(98, job.score + Math.round(job.missing_keywords.length * 4))
       setNewScore(estimated)
       setTab('cv')
-      setTimeout(() => {
-        cvScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-      }, 100)
+      setTimeout(() => { cvScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }) }, 100)
     } catch {
       setEnhanceError('Enhancement failed. Try again.')
     } finally {
@@ -250,36 +463,30 @@ function JobDetailInner() {
     persistStatus(jobUrl, next)
   }
 
-  if (!job) {
-    return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-400">Loading…</p>
-      </div>
-    )
-  }
+  if (!job) return (
+    <div className="h-screen bg-gray-50 flex items-center justify-center">
+      <p className="text-gray-400">Loading…</p>
+    </div>
+  )
 
   const activeCVText = enhancedCV || cvText
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
 
-      {/* ── Top bar ── */}
+      {/* Top bar */}
       <div className="shrink-0 bg-gradient-to-r from-teal-dark to-teal-mid px-4 py-3 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
-          <button onClick={() => router.back()} className="text-white/80 hover:text-white text-sm flex items-center gap-1 font-medium whitespace-nowrap">
+          <button onClick={() => router.back()} className="text-white/80 hover:text-white text-sm flex items-center gap-1 font-medium">
             ← Back
           </button>
           <div className="flex gap-2 flex-wrap justify-end">
-            <button
-              onClick={() => handleStatusToggle('saved')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${status === 'saved' ? 'bg-amber-400 border-amber-400 text-white' : 'border-white/40 text-white hover:border-white'}`}
-            >
+            <button onClick={() => handleStatusToggle('saved')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${status === 'saved' ? 'bg-amber-400 border-amber-400 text-white' : 'border-white/40 text-white hover:border-white'}`}>
               {status === 'saved' ? '★ Saved' : '☆ Save'}
             </button>
-            <button
-              onClick={() => handleStatusToggle('applied')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${status === 'applied' ? 'bg-green-500 border-green-500 text-white' : 'border-white/40 text-white hover:border-white'}`}
-            >
+            <button onClick={() => handleStatusToggle('applied')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all ${status === 'applied' ? 'bg-green-500 border-green-500 text-white' : 'border-white/40 text-white hover:border-white'}`}>
               {status === 'applied' ? '✓ Applied' : 'Mark Applied'}
             </button>
             <a href={job.url} target="_blank" rel="noopener noreferrer"
@@ -290,7 +497,7 @@ function JobDetailInner() {
         </div>
       </div>
 
-      {/* ── Job header strip ── */}
+      {/* Job header */}
       <div className="shrink-0 bg-white border-b border-gray-100 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <ScoreRing score={displayScore} size={56} strokeWidth={6} />
@@ -303,43 +510,33 @@ function JobDetailInner() {
               {displayScore}%
             </span>
             {scoreDelta > 0 && (
-              <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full leading-tight">
+              <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
                 +{scoreDelta} pts ✨
               </span>
             )}
-            {scoreDelta > 0 && (
-              <span className="text-[10px] text-gray-400 leading-tight">AI-enhanced</span>
-            )}
+            {scoreDelta > 0 && <span className="text-[10px] text-gray-400">AI-enhanced</span>}
           </div>
         </div>
       </div>
 
-      {/* ── AI buttons ── */}
+      {/* AI action bar */}
       <div className="shrink-0 bg-white border-b border-gray-100 px-4 py-2">
         <div className="max-w-7xl mx-auto flex flex-wrap gap-2 items-center">
-          <button
-            onClick={handleEnhanceCV}
+          <button onClick={handleEnhanceCV}
             disabled={isEnhancing || job.missing_keywords.length === 0 || keywordsAdded}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold text-xs hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isEnhancing ? (
-              <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Enhancing CV…</>
-            ) : keywordsAdded ? '✨ CV Enhanced' : '✨ Magic AI — Add missing keywords'}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold text-xs hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            {isEnhancing
+              ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Enhancing CV…</>
+              : keywordsAdded ? '✨ CV Enhanced' : '✨ Magic AI — Add missing keywords'}
           </button>
-          <button
-            onClick={handleGenerateLetter}
-            disabled={isGeneratingLetter}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isGeneratingLetter ? (
-              <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Generating…</>
-            ) : '📝 Cover Letter'}
+          <button onClick={handleGenerateLetter} disabled={isGeneratingLetter}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            {isGeneratingLetter
+              ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Generating…</>
+              : '📝 Cover Letter'}
           </button>
-          {(enhanceError || letterError) && (
-            <p className="text-red-500 text-xs">{enhanceError ?? letterError}</p>
-          )}
+          {(enhanceError || letterError) && <p className="text-red-500 text-xs">{enhanceError ?? letterError}</p>}
 
-          {/* Tabs */}
           <div className="ml-auto flex gap-1 bg-gray-100 rounded-lg p-0.5">
             {(['overview', 'cv', 'cover-letter'] as Tab[]).map((t) => (
               <button key={t} onClick={() => setTab(t)}
@@ -351,11 +548,11 @@ function JobDetailInner() {
         </div>
       </div>
 
-      {/* ── Main content ── */}
+      {/* Content */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full max-w-7xl mx-auto px-4 py-4">
 
-          {/* Overview tab */}
+          {/* Overview */}
           {tab === 'overview' && (
             <div className="h-full grid lg:grid-cols-2 gap-4">
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -363,11 +560,9 @@ function JobDetailInner() {
                   <h2 className="text-sm font-bold text-gray-700">Job Description</h2>
                 </div>
                 <div className="flex-1 overflow-y-auto px-5 py-3">
-                  {job.description ? (
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{job.description}</p>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic">No description available.</p>
-                  )}
+                  {job.description
+                    ? <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{job.description}</p>
+                    : <p className="text-sm text-gray-400 italic">No description available.</p>}
                 </div>
               </div>
 
@@ -378,7 +573,7 @@ function JobDetailInner() {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 shrink-0">
                     <h2 className="text-xs font-bold text-green-600 mb-2">✓ Matched ({job.matched_keywords.length})</h2>
                     <div className="flex flex-wrap gap-1.5">
-                      {job.matched_keywords.map((kw) => (
+                      {job.matched_keywords.map(kw => (
                         <span key={kw} className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">{kw}</span>
                       ))}
                     </div>
@@ -392,9 +587,8 @@ function JobDetailInner() {
                         <span className="text-2xl leading-none">✨</span>
                         <div>
                           <p className="text-sm font-bold text-purple-700">Missing keywords added to your CV!</p>
-                          <p className="text-xs text-gray-400 mt-1">Your CV is now ATS-optimized in Canadian format.</p>
-                          <button onClick={() => setTab('cv')}
-                            className="mt-2 text-xs text-purple-600 font-semibold hover:underline">
+                          <p className="text-xs text-gray-400 mt-1">Reformatted to Canadian ATS standard. Ready to download.</p>
+                          <button onClick={() => setTab('cv')} className="mt-2 text-xs text-purple-600 font-semibold hover:underline">
                             View enhanced CV →
                           </button>
                         </div>
@@ -403,15 +597,12 @@ function JobDetailInner() {
                       <>
                         <h2 className="text-xs font-bold text-red-500 mb-2">✗ Missing ({job.missing_keywords.length})</h2>
                         <div className="flex flex-wrap gap-1.5 mb-3">
-                          {job.missing_keywords.map((kw) => (
+                          {job.missing_keywords.map(kw => (
                             <span key={kw} className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-100">{kw}</span>
                           ))}
                         </div>
-                        <button
-                          onClick={handleEnhanceCV}
-                          disabled={isEnhancing}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                        >
+                        <button onClick={handleEnhanceCV} disabled={isEnhancing}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors">
                           {isEnhancing
                             ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Enhancing…</>
                             : '✨ Magic AI — Add to my CV automatically'}
@@ -430,30 +621,30 @@ function JobDetailInner() {
               <div className="shrink-0 px-6 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <h2 className="text-sm font-bold text-gray-700">
-                    {enhancedCV ? '✨ Enhanced CV — Canadian Format' : 'Your CV'}
+                    {enhancedCV ? '✨ Enhanced CV — Canadian Template' : 'Your CV'}
                   </h2>
                   {enhancedCV && (
-                    <p className="text-xs text-gray-400 mt-0.5">ATS-optimized · No dashes or asterisks · Ready to apply</p>
+                    <p className="text-xs text-gray-400 mt-0.5">ATS-optimized · No dashes or asterisks · Bullet format · Ready to apply</p>
                   )}
                 </div>
                 {enhancedCV && (
                   <div className="flex items-center gap-3">
                     {scoreDelta > 0 && (
-                      <div className="text-center">
-                        <span className="text-xs text-gray-400 block">Match score</span>
+                      <div className="text-right">
+                        <span className="text-xs text-gray-400 block leading-tight">New score</span>
                         <span className="text-lg font-extrabold text-purple-600 tabular-nums leading-tight">
                           {displayScore}%
                           <span className="text-xs font-bold text-green-600 ml-1">+{scoreDelta}</span>
                         </span>
                       </div>
                     )}
-                    <button onClick={() => downloadPDF(enhancedCV, 'enhanced-cv.pdf')}
+                    <button onClick={() => downloadPDF(enhancedCV, 'cv-enhanced.pdf')}
                       className="px-3 py-1.5 rounded-lg bg-teal-dark text-white text-xs font-semibold hover:bg-teal-mid transition-colors">
-                      PDF
+                      Download PDF
                     </button>
-                    <button onClick={() => downloadWord(enhancedCV, 'enhanced-cv.docx')}
+                    <button onClick={() => downloadWord(enhancedCV, 'cv-enhanced.docx')}
                       className="px-3 py-1.5 rounded-lg border-2 border-teal-mid text-teal-dark text-xs font-semibold hover:bg-teal-light transition-colors">
-                      Word
+                      Download Word
                     </button>
                   </div>
                 )}
@@ -464,7 +655,7 @@ function JobDetailInner() {
             </div>
           )}
 
-          {/* Cover Letter tab */}
+          {/* Cover letter tab */}
           {tab === 'cover-letter' && (
             <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
               <div className="shrink-0 px-6 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
@@ -499,7 +690,6 @@ function JobDetailInner() {
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
