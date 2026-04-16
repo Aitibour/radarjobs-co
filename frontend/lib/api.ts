@@ -27,6 +27,7 @@ export interface JobMatch {
   location?: string
   salary_min?: number
   salary_max?: number
+  description?: string
 }
 
 export interface ScanResponse {
@@ -86,4 +87,36 @@ export async function getAlertPreferences(token: string): Promise<AlertPreferenc
   const res = await fetchWithAuth('/alerts/preferences', {}, token)
   if (!res.ok) throw new Error(`Failed to get preferences: ${res.statusText}`)
   return res.json()
+}
+
+export async function enhanceCV(
+  cv_text: string,
+  missing_keywords: string[],
+  job_title: string,
+  company: string,
+  token?: string
+): Promise<string> {
+  const res = await fetchWithAuth('/scan/enhance-cv', {
+    method: 'POST',
+    body: JSON.stringify({ cv_text, missing_keywords, job_title, company }),
+  }, token)
+  if (!res.ok) throw new Error('CV enhancement failed')
+  const data = await res.json()
+  return data.enhanced_cv
+}
+
+export async function generateCoverLetter(
+  cv_text: string,
+  job_title: string,
+  company: string,
+  job_description: string,
+  token?: string
+): Promise<string> {
+  const res = await fetchWithAuth('/scan/cover-letter', {
+    method: 'POST',
+    body: JSON.stringify({ cv_text, job_title, company, job_description }),
+  }, token)
+  if (!res.ok) throw new Error('Cover letter generation failed')
+  const data = await res.json()
+  return data.cover_letter
 }

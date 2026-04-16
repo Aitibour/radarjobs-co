@@ -116,6 +116,12 @@ export default function ScanPage() {
         { cv_text: cvText, job_title: jobTitle, location: location || 'United States', hours_old: hoursOld },
         token
       )
+      sessionStorage.setItem('radarjobs_scan', JSON.stringify({
+        matches: response.matches,
+        cvText,
+        jobTitle,
+        location,
+      }))
       setResults(response)
       setStep('results')
     } catch (err: unknown) {
