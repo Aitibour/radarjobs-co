@@ -333,21 +333,26 @@ async def enhance_cv(request: EnhanceCVRequest) -> EnhanceCVResponse:
         return EnhanceCVResponse(enhanced_cv=request.cv_text)
 
     keywords_str = ", ".join(request.missing_keywords)
-    prompt = f"""You are a professional CV writer. Enhance the CV below by naturally incorporating the missing skills/keywords listed.
+    prompt = f"""You are a professional Canadian CV writer. Rewrite the CV below incorporating the missing keywords, formatted as a clean ATS-friendly Canadian resume.
 
-Rules:
-- Do NOT invent fake experience or change facts
-- Integrate keywords naturally where relevant (skills section, bullet points, summaries)
-- Keep the same structure and format
-- Add a Skills section at the top if one does not exist
-- Return ONLY the enhanced CV text, no explanations
+CRITICAL FORMATTING RULES:
+- Use ONLY the bullet character "•" for list items — NEVER use dashes (-) or asterisks (*) as bullets
+- Section headers in ALL CAPS: PROFESSIONAL SUMMARY, EXPERIENCE, EDUCATION, SKILLS & COMPETENCIES, CERTIFICATIONS
+- No markdown, no bold/italic markup, no tables, no columns — plain text only, fully ATS optimized
+- Name on line 1, contact info (city, phone, email, LinkedIn) on lines 2-3
+- Each job entry: "Job Title | Company | City | YYYY – YYYY" on one line, then bullet achievements below
+- Do NOT invent experience or change any facts
+- Naturally weave in the missing keywords where genuinely relevant (skills, summary, achievements)
+- Every bullet point must start with an action verb or a keyword — no filler text
 
 Missing keywords to add: {keywords_str}
 
-CV:
+Original CV:
 ---
 {request.cv_text[:4000]}
----"""
+---
+
+Return ONLY the enhanced CV text. No explanations, no preamble, no commentary."""
     try:
         import services.ai_router as ai_router
         enhanced = await ai_router.ai_complete(prompt)
