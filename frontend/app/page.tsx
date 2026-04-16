@@ -30,42 +30,47 @@ export default function LandingPage() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Left: text + CTA */}
-        <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24">
-          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-3 py-1 mb-6 w-fit">
+        <div className="flex-1 flex flex-col justify-center px-8 md:px-14 lg:px-20 max-w-2xl">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 mb-8 w-fit">
             <span className="w-2 h-2 rounded-full bg-teal-accent animate-pulse shrink-0" />
-            <span className="text-white/90 text-xs font-medium">50+ job boards scanned in real-time</span>
+            <span className="text-white/90 text-xs font-semibold tracking-wide">50+ job boards · live scanning</span>
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 tracking-tight">
-            The right job<br/>
-            <span style={{ color: '#5DCAA5' }}>is already out there.</span>
+          {/* Hook — CV + Radar + Job */}
+          <h1 className="font-extrabold text-white leading-[1.1] tracking-tight mb-5">
+            <span className="text-5xl md:text-6xl lg:text-7xl block">CV in.</span>
+            <span className="text-5xl md:text-6xl lg:text-7xl block">Radar on.</span>
+            <span className="text-4xl md:text-5xl lg:text-6xl block mt-1" style={{ color: '#5DCAA5' }}>
+              Right job, locked on.
+            </span>
           </h1>
 
-          <p className="text-white/75 text-base md:text-lg max-w-lg mb-8 leading-relaxed">
-            Upload your CV once — we scan LinkedIn, Indeed, Glassdoor and 47 more job boards,
-            then rank every match by how well it fits your actual skills.{' '}
-            <span className="text-white font-semibold">Free, no account needed.</span>
+          <p className="text-white/70 text-base md:text-lg max-w-md mb-8 leading-relaxed">
+            Upload your CV — our AI scans LinkedIn, Indeed, Glassdoor and 47 more boards,
+            then scores every role against your actual skills.{' '}
+            <span className="text-white font-semibold">Free, no sign-up needed.</span>
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 mb-8">
             <Link
               href="/scan"
-              className="inline-flex items-center justify-center gap-2 bg-white text-teal-dark font-bold text-base px-7 py-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
+              className="inline-flex items-center justify-center gap-2 bg-white text-teal-dark font-bold text-base px-8 py-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
             >
               Scan my CV free →
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center justify-center gap-2 border-2 border-white/50 text-white font-semibold text-base px-7 py-3.5 rounded-full hover:bg-white/10 transition-all duration-200"
+              className="inline-flex items-center justify-center gap-2 border-2 border-white/40 text-white font-semibold text-base px-7 py-3.5 rounded-full hover:bg-white/10 transition-all duration-200"
             >
               Sign in
             </Link>
           </div>
 
           {/* Job board chips */}
-          <div className="mt-8 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {['LinkedIn', 'Indeed', 'Glassdoor', 'Google Jobs', '+46 more'].map((board) => (
-              <span key={board} className="bg-white/10 border border-white/20 text-white/70 text-xs px-3 py-1 rounded-full">
+              <span key={board} className="bg-white/10 border border-white/20 text-white/60 text-xs px-3 py-1 rounded-full">
                 {board}
               </span>
             ))}
