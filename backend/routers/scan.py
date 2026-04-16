@@ -219,25 +219,19 @@ async def _run_scan_pipeline(
             cv_skills=parsed_cv.skills,
         )
 
-    # 3. Score all jobs in parallel
+    # 3. Score jobs in a single batched LLM call (cap at 15 to keep prompt fast)
+    jobs_to_score = jobs[:15]
     try:
-        score_tasks = [
-            matcher.score_match(
-                cv_text=request.cv_text,
-                job_description=job.get("description", ""),
-                job_title=job.get("title", ""),
-                company=job.get("company", ""),
-                url=job.get("url", ""),
-            )
-            for job in jobs
-        ]
-        results: List[matcher.MatchResult] = await asyncio.gather(*score_tasks)
+        results: List[matcher.MatchResult] = await matcher.score_matches_batch(
+            cv_text=request.cv_text,
+            jobs=jobs_to_score,
+        )
     except Exception as exc:
         logger.error("scan: matcher failed — %s", exc)
         raise HTTPException(status_code=500, detail="Job scoring failed") from exc
 
     # Attach source / location / salary from scraped data to results
-    url_to_job = {job["url"]: job for job in jobs}
+    url_to_job = {job["url"]: job for job in jobs_to_score}
 
     # 4. Sort by score descending
     results_sorted = sorted(results, key=lambda r: r.score, reverse=True)
@@ -272,7 +266,7 @@ async def _run_scan_pipeline(
         )
 
     return ScanResponse(
-        total_jobs_scanned=len(jobs),
+        total_jobs_scanned=len(jobs),  # total scraped, not just scored
         matches=match_responses,
         cv_title=parsed_cv.title,
         cv_skills=parsed_cv.skills,

@@ -11,7 +11,6 @@ import clsx from 'clsx'
 type Step = 'start' | 'confirm' | 'results'
 type InputMode = 'cv' | 'manual'
 
-// ── Client-side fallback extraction ─────────────────────────────────────────
 const TITLE_KEYWORDS = /\b(engineer|developer|designer|manager|analyst|architect|scientist|consultant|director|lead|senior|junior|full.?stack|frontend|backend|devops|product|software|data|cloud|security|mobile|qa|test|ux|ui|research|ingénieur|développeur|chargé|chef|responsable|coordinateur|technicien|architecte|analyste|directeur|gestionnaire|support|infrastructure|projet|réseau|système|spécialiste|administrateur|conseiller|agent)\b/i
 const LOCATION_PATTERN = /([\w\u00C0-\u024F][\w\u00C0-\u024F\s]{1,20}),\s*([A-Z]{2})\b/
 
@@ -24,8 +23,7 @@ function extractFromCVText(text: string): { title: string; location: string } {
     if (line === line.toUpperCase() && line.length > 6) continue
     const wordCount = line.split(/\s+/).length
     if (wordCount >= 2 && wordCount <= 12 && TITLE_KEYWORDS.test(line) && line.length < 80) {
-      title = line.split(',')[0].trim()
-      break
+      title = line.split(',')[0].trim(); break
     }
   }
   let location = ''
@@ -36,8 +34,24 @@ function extractFromCVText(text: string): { title: string; location: string } {
   return { title, location }
 }
 
-// Always search last 15 days (maps to JSearch "month" — closest option)
 const HOURS_OLD = 360
+
+// ── Mini radar SVG (reusable) ─────────────────────────────────────────────
+function RadarSpinner({ size = 56, label }: { size?: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <svg width={size} height={size} viewBox="0 0 80 80" fill="none" style={{ animation: 'radar-spin 2s linear infinite' }}>
+        <circle cx="40" cy="40" r="36" stroke="#E1F5EE" strokeWidth="3"/>
+        <circle cx="40" cy="40" r="24" stroke="#C8EDE3" strokeWidth="2"/>
+        <circle cx="40" cy="40" r="12" stroke="#C8EDE3" strokeWidth="2"/>
+        <path d="M40 40 L40 4 A36 36 0 0 1 76 40 Z" fill="#5DCAA5" fillOpacity="0.6"/>
+        <circle cx="40" cy="40" r="3.5" fill="#1D9E75"/>
+      </svg>
+      <style jsx>{`@keyframes radar-spin { to { transform: rotate(360deg); } }`}</style>
+      <p className="text-sm font-semibold text-teal-dark text-center">{label}</p>
+    </div>
+  )
+}
 
 export default function ScanPage() {
   const [step, setStep] = useState<Step>('start')
@@ -72,7 +86,7 @@ export default function ScanPage() {
       setExtracted(null)
       setJobTitle(local.title)
       setLocation(local.location)
-      if (!local.title) setExtractError('Could not detect your job title — please fill it in below.')
+      if (!local.title) setExtractError('Could not detect your job title — please fill it in.')
       setStep('confirm')
     } finally {
       setIsExtracting(false)
@@ -81,16 +95,12 @@ export default function ScanPage() {
 
   const handleManualProceed = () => {
     if (!jobTitle.trim()) return
-    setExtracted(null)
-    setExtractError(null)
-    setStep('confirm')
+    setExtracted(null); setExtractError(null); setStep('confirm')
   }
 
   const handleScan = async () => {
     if (!jobTitle.trim()) return
-    setIsScanning(true)
-    setScanError(null)
-    setResults(null)
+    setIsScanning(true); setScanError(null); setResults(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const effectiveCv = cvText.trim() || `Candidate searching for: ${jobTitle}`
@@ -99,8 +109,7 @@ export default function ScanPage() {
         session?.access_token
       )
       sessionStorage.setItem('radarjobs_scan', JSON.stringify({ matches: response.matches, cvText: effectiveCv, jobTitle, location }))
-      setResults(response)
-      setStep('results')
+      setResults(response); setStep('results')
     } catch (err: unknown) {
       setScanError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
@@ -109,14 +118,9 @@ export default function ScanPage() {
   }
 
   const resetToStart = () => {
-    setStep('start')
-    setCvText('')
-    setExtracted(null)
-    setJobTitle('')
-    setLocation('')
-    setResults(null)
-    setScanError(null)
-    setExtractError(null)
+    setStep('start'); setCvText(''); setExtracted(null)
+    setJobTitle(''); setLocation(''); setResults(null)
+    setScanError(null); setExtractError(null)
   }
 
   const stepLabels = ['Start', 'Confirm', 'Results']
@@ -125,151 +129,145 @@ export default function ScanPage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
 
-      {/* ── Fixed gradient header ── */}
-      <div className="shrink-0 bg-gradient-to-r from-teal-dark to-teal-mid px-6 py-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-extrabold text-white">Radar Scan</h1>
-              <p className="text-white/70 text-xs mt-0.5">Last 15 days · LinkedIn, Indeed, Glassdoor, Google &amp; more</p>
-            </div>
-            {/* Step pills */}
-            <div className="flex items-center gap-2">
-              {stepKeys.map((s, i) => {
-                const active = step === s
-                const done = stepKeys.indexOf(step) > i
-                return (
-                  <div key={s} className="flex items-center gap-1.5">
-                    <div className={clsx(
-                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all',
-                      active ? 'bg-white text-teal-dark' :
-                      done ? 'bg-teal-accent/70 text-white' : 'bg-white/20 text-white/50'
-                    )}>
-                      {done ? '✓' : i + 1}
-                    </div>
-                    <span className={clsx('text-xs font-medium hidden sm:inline', active ? 'text-white' : 'text-white/40')}>
-                      {stepLabels[i]}
-                    </span>
-                    {i < 2 && <div className="w-4 h-px bg-white/25 hidden sm:block" />}
+      {/* ── Header ── */}
+      <div className="shrink-0 bg-gradient-to-r from-teal-dark to-teal-mid px-6 py-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-extrabold text-white">Radar Scan</h1>
+            <p className="text-white/60 text-xs">Last 15 days · LinkedIn, Indeed, Glassdoor, Google &amp; more</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {stepKeys.map((s, i) => {
+              const active = step === s
+              const done = stepKeys.indexOf(step) > i
+              return (
+                <div key={s} className="flex items-center gap-1.5">
+                  <div className={clsx(
+                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold',
+                    active ? 'bg-white text-teal-dark' :
+                    done ? 'bg-teal-accent/70 text-white' : 'bg-white/20 text-white/50'
+                  )}>
+                    {done ? '✓' : i + 1}
                   </div>
-                )
-              })}
-            </div>
+                  <span className={clsx('text-xs hidden sm:inline', active ? 'text-white font-semibold' : 'text-white/40')}>
+                    {stepLabels[i]}
+                  </span>
+                  {i < 2 && <div className="w-4 h-px bg-white/25 hidden sm:block"/>}
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
 
-      {/* ── Scrollable content ── */}
+      {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
 
           {/* ── STEP 1: Start ── */}
           {step === 'start' && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-
-              {/* Mode tabs */}
+              {/* Tabs */}
               <div className="grid grid-cols-2 border-b border-gray-100">
-                <button
-                  onClick={() => setInputMode('cv')}
-                  className={clsx(
-                    'py-4 text-sm font-bold transition-colors flex items-center justify-center gap-2',
-                    inputMode === 'cv'
-                      ? 'text-teal-dark border-b-2 border-teal-dark bg-teal-light/40'
-                      : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
-                  )}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Match via CV
-                </button>
-                <button
-                  onClick={() => setInputMode('manual')}
-                  className={clsx(
-                    'py-4 text-sm font-bold transition-colors flex items-center justify-center gap-2',
-                    inputMode === 'manual'
-                      ? 'text-teal-dark border-b-2 border-teal-dark bg-teal-light/40'
-                      : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
-                  )}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Enter manually
-                </button>
+                {([['cv', 'Match via CV', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+                   ['manual', 'Enter manually', 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z']] as const).map(([mode, label, path]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setInputMode(mode)}
+                    className={clsx(
+                      'py-3.5 text-sm font-bold flex items-center justify-center gap-2 transition-colors',
+                      inputMode === mode
+                        ? 'text-teal-dark border-b-2 border-teal-dark bg-teal-light/40'
+                        : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
+                    )}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={path}/>
+                    </svg>
+                    {label}
+                  </button>
+                ))}
               </div>
 
-              {/* CV mode */}
+              {/* CV mode — side by side: drop zone left, status right */}
               {inputMode === 'cv' && (
-                <div className="p-8">
-                  <h2 className="text-xl font-bold text-gray-900 mb-1">Upload your CV</h2>
-                  <p className="text-gray-500 text-sm mb-6">AI reads your CV, detects your role and skills, then finds the best matching jobs from the last 15 days.</p>
-                  {isExtracting ? (
-                    <div className="flex flex-col items-center gap-4 py-10">
-                      <svg className="w-16 h-16 animate-spin" viewBox="0 0 80 80" fill="none">
-                        <circle cx="40" cy="40" r="36" stroke="#E1F5EE" strokeWidth="3" />
-                        <circle cx="40" cy="40" r="24" stroke="#E1F5EE" strokeWidth="2" />
-                        <path d="M40 40 L40 4 A36 36 0 0 1 76 40 Z" fill="#5DCAA5" fillOpacity="0.5" />
-                        <circle cx="40" cy="40" r="3" fill="#1D9E75" />
-                      </svg>
-                      <p className="font-bold text-teal-dark">Analysing your CV…</p>
-                      <p className="text-sm text-gray-400">Detecting your role, location and skills</p>
-                    </div>
-                  ) : (
+                <div className="grid md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+                  <div className="p-6">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Upload your CV</p>
                     <CVUpload onTextExtracted={handleTextExtracted} />
-                  )}
+                  </div>
+                  <div className="p-6 flex flex-col items-center justify-center bg-gray-50/50 min-h-[200px]">
+                    {isExtracting ? (
+                      <RadarSpinner label="Analysing your CV…" />
+                    ) : (
+                      <div className="text-center">
+                        <div className="w-12 h-12 rounded-full bg-teal-light flex items-center justify-center mx-auto mb-3">
+                          <svg className="w-6 h-6 text-teal-mid" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                          </svg>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-700 mb-1">AI-powered matching</p>
+                        <p className="text-xs text-gray-400 max-w-[180px]">We extract your skills and score every job against your profile</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Manual mode */}
+              {/* Manual mode — side by side: fields left, info right */}
               {inputMode === 'manual' && (
-                <div className="p-8 flex flex-col gap-5">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 mb-1">Search by job title</h2>
-                    <p className="text-gray-500 text-sm">We&apos;ll scan 50+ job boards for the last 15 days and return the best matches.</p>
+                <div className="grid md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+                  <div className="p-6 flex flex-col gap-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Search by title</p>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                        Job title <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={jobTitle}
+                        onChange={(e) => setJobTitle(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleManualProceed()}
+                        placeholder="e.g. Software Engineer"
+                        className="w-full border-2 border-gray-100 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                        Location <span className="text-gray-300 font-normal normal-case">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleManualProceed()}
+                        placeholder="e.g. Montréal, QC · Remote"
+                        className="w-full border-2 border-gray-100 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={handleManualProceed}
+                      disabled={!jobTitle.trim()}
+                      className={clsx(
+                        'w-full py-3 rounded-xl font-bold text-sm transition-all',
+                        jobTitle.trim() ? 'bg-teal-dark text-white hover:bg-teal-mid' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      )}
+                    >
+                      Continue →
+                    </button>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                      Job title <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={jobTitle}
-                      onChange={(e) => setJobTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleManualProceed()}
-                      placeholder="e.g. Software Engineer, Administrateur Systèmes"
-                      className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors"
-                      autoFocus
-                    />
+                  <div className="p-6 flex flex-col items-center justify-center bg-gray-50/50 min-h-[200px]">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-full bg-teal-light flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-6 h-6 text-teal-mid" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803M10.5 7.5v6m3-3h-6"/>
+                        </svg>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-700 mb-1">50+ job boards</p>
+                      <p className="text-xs text-gray-400 max-w-[180px]">LinkedIn, Indeed, Glassdoor, Google Jobs and more — last 15 days</p>
+                    </div>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                      Location <span className="text-gray-300 font-normal normal-case">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleManualProceed()}
-                      placeholder="e.g. Montréal, QC · Toronto, ON · Remote"
-                      className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors"
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleManualProceed}
-                    disabled={!jobTitle.trim()}
-                    className={clsx(
-                      'w-full py-3.5 rounded-xl font-bold text-base transition-all flex items-center justify-center gap-2',
-                      jobTitle.trim()
-                        ? 'bg-teal-dark text-white hover:bg-teal-mid hover:shadow-md'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    )}
-                  >
-                    Continue →
-                  </button>
                 </div>
               )}
             </div>
@@ -277,153 +275,136 @@ export default function ScanPage() {
 
           {/* ── STEP 2: Confirm ── */}
           {step === 'confirm' && (
-            <div className="flex flex-col gap-5">
+            <div className="grid md:grid-cols-2 gap-5">
 
-              {extracted && (
-                <div className="bg-teal-light rounded-2xl border border-teal-accent/30 p-4 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-teal-mid/20 flex items-center justify-center shrink-0">
-                    <svg className="w-4 h-4 text-teal-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+              {/* Left: form */}
+              <div className="flex flex-col gap-4">
+                {extracted && (
+                  <div className="bg-teal-light rounded-2xl border border-teal-accent/30 p-4 flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-teal-mid/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="w-3.5 h-3.5 text-teal-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-teal-dark uppercase tracking-wider mb-0.5">Detected from CV</p>
+                      <p className="text-gray-700 text-sm">{extracted.title}{extracted.location && ` · ${extracted.location}`}</p>
+                      {extracted.skills.length > 0 && (
+                        <p className="text-gray-400 text-xs mt-0.5">{extracted.skills.slice(0, 5).join(', ')}{extracted.skills.length > 5 ? ' +more' : ''}</p>
+                      )}
+                    </div>
+                    <button onClick={resetToStart} className="text-xs text-teal-mid font-semibold hover:underline shrink-0">Change</button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-teal-dark uppercase tracking-wider">Detected from CV</p>
-                    <p className="text-gray-700 text-sm truncate">
-                      <span className="font-semibold">{extracted.title}</span>
-                      {extracted.location && <> · {extracted.location}</>}
-                      {extracted.skills.length > 0 && <span className="text-gray-400"> · {extracted.skills.slice(0, 4).join(', ')}{extracted.skills.length > 4 ? ' +more' : ''}</span>}
-                    </p>
+                )}
+
+                {extractError && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3">{extractError}</div>
+                )}
+
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                      Job title <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      placeholder="e.g. Senior React Developer"
+                      className="w-full border-2 border-gray-100 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
+                    />
                   </div>
-                  <button onClick={resetToStart} className="text-xs text-teal-mid font-semibold hover:underline shrink-0">
-                    Change
-                  </button>
-                </div>
-              )}
-
-              {extractError && (
-                <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3">{extractError}</div>
-              )}
-
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Confirm your search</h2>
-                  <p className="text-gray-400 text-xs mt-0.5">Scanning last 15 days across LinkedIn, Indeed, Glassdoor, Google Jobs &amp; more</p>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                      Location <span className="text-gray-300 font-normal normal-case">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="e.g. Montréal, QC · Remote"
+                      className="w-full border-2 border-gray-100 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                    Job title <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
-                    placeholder="e.g. Senior React Developer"
-                    className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
-                  />
-                </div>
+                <button
+                  onClick={handleScan}
+                  disabled={!jobTitle.trim() || isScanning}
+                  className={clsx(
+                    'w-full py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all',
+                    jobTitle.trim() && !isScanning
+                      ? 'bg-teal-dark text-white hover:bg-teal-mid hover:shadow-md'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  )}
+                >
+                  {isScanning ? (
+                    <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Scanning…</>
+                  ) : '🔍 Scan Now'}
+                </button>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                    Location <span className="text-gray-300 font-normal normal-case">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="e.g. Montréal, QC · Toronto, ON · Remote"
-                    className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-mid transition-colors text-sm"
-                  />
-                </div>
+                {scanError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                    {scanError.toLowerCase().includes('fetch') ? 'Cannot reach the backend — check NEXT_PUBLIC_API_URL.' : scanError}
+                  </div>
+                )}
               </div>
 
-              <button
-                onClick={handleScan}
-                disabled={!jobTitle.trim() || isScanning}
-                className={clsx(
-                  'w-full py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all duration-200',
-                  jobTitle.trim() && !isScanning
-                    ? 'bg-teal-dark text-white hover:bg-teal-mid hover:shadow-lg hover:scale-[1.01]'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                )}
-              >
+              {/* Right: radar animation or idle info */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center p-8 min-h-[280px]">
                 {isScanning ? (
-                  <>
-                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                    Scanning job boards…
-                  </>
-                ) : '🔍 Scan Now'}
-              </button>
-
-              {scanError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-                  {scanError.toLowerCase().includes('fetch')
-                    ? 'Cannot reach the backend — make sure NEXT_PUBLIC_API_URL is set.'
-                    : scanError}
-                </div>
-              )}
-
-              {isScanning && (
-                <div className="bg-teal-light rounded-2xl p-6 flex flex-col items-center gap-4">
-                  <svg className="w-16 h-16" viewBox="0 0 80 80" fill="none" style={{ animation: 'spin 2s linear infinite' }}>
-                    <circle cx="40" cy="40" r="36" stroke="#E1F5EE" strokeWidth="3" />
-                    <circle cx="40" cy="40" r="24" stroke="#E1F5EE" strokeWidth="2" />
-                    <circle cx="40" cy="40" r="12" stroke="#E1F5EE" strokeWidth="2" />
-                    <path d="M40 40 L40 4 A36 36 0 0 1 76 40 Z" fill="#5DCAA5" fillOpacity="0.5" />
-                    <circle cx="40" cy="40" r="3" fill="#1D9E75" />
-                  </svg>
-                  <style jsx>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                  <div className="text-center">
-                    <p className="font-bold text-teal-dark">Scanning for &ldquo;{jobTitle}&rdquo;{location ? ` in ${location}` : ''}…</p>
-                    <p className="text-sm text-gray-500 mt-1">LinkedIn · Indeed · Glassdoor · Google · Last 15 days</p>
+                  <div className="text-center flex flex-col items-center gap-4">
+                    <RadarSpinner size={72} label="" />
+                    <div>
+                      <p className="font-bold text-teal-dark text-base">Scanning for &ldquo;{jobTitle}&rdquo;{location ? ` in ${location}` : ''}…</p>
+                      <p className="text-xs text-gray-400 mt-1">LinkedIn · Indeed · Glassdoor · Google · Last 15 days</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="text-center">
+                    <svg className="w-16 h-16 mx-auto mb-4 opacity-20" viewBox="0 0 80 80" fill="none">
+                      <circle cx="40" cy="40" r="36" stroke="#1D9E75" strokeWidth="3"/>
+                      <circle cx="40" cy="40" r="24" stroke="#1D9E75" strokeWidth="2"/>
+                      <circle cx="40" cy="40" r="12" stroke="#1D9E75" strokeWidth="2"/>
+                      <path d="M40 40 L40 4 A36 36 0 0 1 76 40 Z" fill="#5DCAA5"/>
+                      <circle cx="40" cy="40" r="3.5" fill="#1D9E75"/>
+                    </svg>
+                    <p className="text-sm font-semibold text-gray-500 mb-1">Ready to scan</p>
+                    <p className="text-xs text-gray-400">Confirm your details and hit Scan Now</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {/* ── STEP 3: Results ── */}
           {step === 'results' && results && (
-            <div className="flex flex-col gap-5">
-
-              {/* Results header */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-2xl font-extrabold text-teal-dark">
-                      {results.matches.length} match{results.matches.length !== 1 ? 'es' : ''} found
-                    </p>
-                    <p className="text-gray-500 text-sm mt-0.5">
-                      from <span className="font-semibold text-gray-700">{results.total_jobs_scanned.toLocaleString()} jobs</span> scanned
-                      {' '}· &ldquo;{jobTitle}&rdquo;{location ? ` in ${location}` : ''} · Last 15 days
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setStep('confirm')} className="text-sm font-semibold text-teal-mid border-2 border-teal-mid px-3 py-2 rounded-xl hover:bg-teal-light transition-colors">
-                      Refine
-                    </button>
-                    <button onClick={resetToStart} className="text-sm font-semibold text-gray-500 border-2 border-gray-200 px-3 py-2 rounded-xl hover:border-gray-300 transition-colors">
-                      New scan
-                    </button>
-                  </div>
+            <div className="flex flex-col gap-4">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xl font-extrabold text-teal-dark">
+                    {results.matches.length} match{results.matches.length !== 1 ? 'es' : ''} found
+                  </p>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    from <span className="font-semibold text-gray-700">{results.total_jobs_scanned.toLocaleString()} jobs</span> scanned
+                    {' '}· &ldquo;{jobTitle}&rdquo;{location ? ` in ${location}` : ''} · Last 15 days
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => setStep('confirm')} className="text-xs font-semibold text-teal-mid border-2 border-teal-mid px-3 py-1.5 rounded-lg hover:bg-teal-light transition-colors">Refine</button>
+                  <button onClick={resetToStart} className="text-xs font-semibold text-gray-500 border-2 border-gray-200 px-3 py-1.5 rounded-lg hover:border-gray-300 transition-colors">New scan</button>
                 </div>
               </div>
 
-              {/* Job cards */}
               {results.matches.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
-                  <p className="text-gray-400 text-2xl mb-3">🔍</p>
+                  <p className="text-gray-400 text-3xl mb-3">🔍</p>
                   <p className="font-semibold text-gray-700 mb-1">No jobs found</p>
-                  <p className="text-gray-500 text-sm mb-4">Try a broader job title or a different location.</p>
-                  <button onClick={() => setStep('confirm')} className="text-sm font-semibold text-teal-mid underline underline-offset-2">
-                    Adjust search
-                  </button>
+                  <p className="text-gray-500 text-sm mb-4">Try a broader title or a different location.</p>
+                  <button onClick={() => setStep('confirm')} className="text-sm font-semibold text-teal-mid underline underline-offset-2">Adjust search</button>
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {results.matches.map((job: JobMatch, i: number) => (
                     <JobCard key={job.url ?? i} job={job} />
                   ))}

@@ -16,7 +16,7 @@ export default function LandingPage() {
             <path d="M20 14a6 6 0 0 1-6 6" stroke="#E1F5EE" strokeWidth="2" strokeLinecap="round"/>
             <circle cx="14" cy="14" r="2.5" fill="white"/>
           </svg>
-          <span className="text-white font-extrabold text-lg tracking-tight">RadarJobs</span>
+          <span className="font-extrabold text-lg tracking-tight"><span className="text-white">Radar</span><span className="text-gray-900">Jobs</span></span>
         </div>
         <div className="flex gap-3">
           <Link href="/login" className="text-white/80 hover:text-white text-sm font-medium transition-colors">Sign in</Link>
@@ -33,18 +33,18 @@ export default function LandingPage() {
         <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24">
           <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-3 py-1 mb-6 w-fit">
             <span className="w-2 h-2 rounded-full bg-teal-accent animate-pulse shrink-0" />
-            <span className="text-white/90 text-xs font-medium">Scanning 50+ job boards in real-time</span>
+            <span className="text-white/90 text-xs font-medium">50+ job boards scanned in real-time</span>
           </div>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 tracking-tight">
-            Your CV on radar.
-            <br />
-            <span style={{ color: '#5DCAA5' }}>Right job locked on.</span>
+            The right job<br/>
+            <span style={{ color: '#5DCAA5' }}>is already out there.</span>
           </h1>
 
           <p className="text-white/75 text-base md:text-lg max-w-lg mb-8 leading-relaxed">
-            AI scans LinkedIn, Indeed, Glassdoor and more — then scores each role against your CV in seconds.{' '}
-            <span className="text-white font-semibold">100% free.</span>
+            Upload your CV once — we scan LinkedIn, Indeed, Glassdoor and 47 more job boards,
+            then rank every match by how well it fits your actual skills.{' '}
+            <span className="text-white font-semibold">Free, no account needed.</span>
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3">
