@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { enhanceCV, generateCoverLetter } from '@/lib/api'
-import type { JobMatch } from '@/lib/api'
+import { enhanceCV, generateCoverLetter, generateInterviewPrep } from '@/lib/api'
+import type { JobMatch, InterviewPrepResult } from '@/lib/api'
 import ScoreRing from '@/components/ScoreRing'
 import { getSupabaseClient } from '@/lib/supabase'
 
 type Status = 'saved' | 'applied' | null
-type Tab = 'overview' | 'cv' | 'cover-letter'
+type Tab = 'overview' | 'cv' | 'cover-letter' | 'interview'
 
 function getStatuses(): Record<string, Status> {
   try { return JSON.parse(localStorage.getItem('radarjobs_statuses') ?? '{}') } catch { return {} }
@@ -402,6 +402,11 @@ function JobDetailInner() {
   const [isGeneratingLetter, setIsGeneratingLetter] = useState(false)
   const [letterError, setLetterError] = useState<string | null>(null)
 
+  const [interviewPrep, setInterviewPrep] = useState<InterviewPrepResult | null>(null)
+  const [isGeneratingPrep, setIsGeneratingPrep] = useState(false)
+  const [prepError, setPrepError] = useState<string | null>(null)
+  const [openQuestion, setOpenQuestion] = useState<number | null>(null)
+
   const cvScrollRef = useRef<HTMLDivElement>(null)
 
   const scoreTarget = newScore ?? (job?.score ?? 0)
@@ -455,6 +460,23 @@ function JobDetailInner() {
       setLetterError('Cover letter generation failed. Try again.')
     } finally {
       setIsGeneratingLetter(false)
+    }
+  }
+
+  const handleGeneratePrep = async () => {
+    if (!job) return
+    setIsGeneratingPrep(true)
+    setPrepError(null)
+    try {
+      const supabase = getSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const result = await generateInterviewPrep(cvText, job.job_title, job.company, job.description ?? '', session?.access_token)
+      setInterviewPrep(result)
+      setTab('interview')
+    } catch {
+      setPrepError('Interview prep failed. Try again.')
+    } finally {
+      setIsGeneratingPrep(false)
     }
   }
 
@@ -536,13 +558,22 @@ function JobDetailInner() {
               ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Generating…</>
               : '📝 Cover Letter'}
           </button>
-          {(enhanceError || letterError) && <p className="text-red-500 text-xs">{enhanceError ?? letterError}</p>}
+          <button onClick={handleGeneratePrep} disabled={isGeneratingPrep}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 text-white font-semibold text-xs hover:bg-orange-600 disabled:opacity-50 transition-colors">
+            {isGeneratingPrep
+              ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Preparing…</>
+              : '🎯 Interview Prep'}
+          </button>
+          {(enhanceError || letterError || prepError) && <p className="text-red-500 text-xs">{enhanceError ?? letterError ?? prepError}</p>}
 
           <div className="ml-auto flex gap-1 bg-gray-100 rounded-lg p-0.5">
-            {(['overview', 'cv', 'cover-letter'] as Tab[]).map((t) => (
+            {(['overview', 'cv', 'cover-letter', 'interview'] as Tab[]).map((t) => (
               <button key={t} onClick={() => setTab(t)}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab === t ? 'bg-white text-teal-dark shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                {t === 'overview' ? 'Overview' : t === 'cv' ? `CV${enhancedCV ? ' ✨' : ''}` : `Letter${coverLetter ? ' ✓' : ''}`}
+                {t === 'overview' ? 'Overview'
+                  : t === 'cv' ? `CV${enhancedCV ? ' ✨' : ''}`
+                  : t === 'cover-letter' ? `Letter${coverLetter ? ' ✓' : ''}`
+                  : `Interview${interviewPrep ? ' ✓' : ''}`}
               </button>
             ))}
           </div>
@@ -686,6 +717,63 @@ function JobDetailInner() {
                       className="px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
                       {isGeneratingLetter ? 'Generating…' : '📝 Generate Cover Letter'}
                     </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Interview Prep tab */}
+          {tab === 'interview' && (
+            <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+              <div className="shrink-0 px-6 pt-4 pb-3 border-b border-gray-100">
+                <h2 className="text-sm font-bold text-gray-700">🎯 Interview Prep</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Tailored questions + coached answers based on your CV and this job</p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                {interviewPrep ? (
+                  <div className="max-w-2xl mx-auto flex flex-col gap-6">
+
+                    {/* Opening pitch */}
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-5">
+                      <p className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-2">Tell me about yourself</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{interviewPrep.opening_pitch}</p>
+                    </div>
+
+                    {/* Questions accordion */}
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Likely interview questions</p>
+                      {interviewPrep.questions.map((q, i) => (
+                        <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+                          <button
+                            onClick={() => setOpenQuestion(openQuestion === i ? null : i)}
+                            className="w-full text-left px-5 py-4 flex items-start justify-between gap-3 hover:bg-gray-50 transition-colors">
+                            <span className="text-sm font-semibold text-gray-800 leading-snug">{q.question}</span>
+                            <span className={`text-gray-400 shrink-0 mt-0.5 transition-transform ${openQuestion === i ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                          {openQuestion === i && (
+                            <div className="px-5 pb-4 bg-teal-dark/[0.02] border-t border-gray-50">
+                              <p className="text-xs font-bold text-teal-dark uppercase tracking-wider mb-2 mt-3">Coached answer</p>
+                              <p className="text-sm text-gray-700 leading-relaxed">{q.coached_answer}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center gap-4">
+                    <div className="text-5xl">🎯</div>
+                    <div className="text-center">
+                      <p className="text-gray-700 font-semibold text-sm mb-1">AI-powered interview coaching</p>
+                      <p className="text-gray-400 text-xs max-w-xs">Get 5 tailored interview questions with coached answers based on your CV and this specific role.</p>
+                    </div>
+                    <button onClick={handleGeneratePrep} disabled={isGeneratingPrep}
+                      className="flex items-center gap-2 px-6 py-3 rounded-xl bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                      {isGeneratingPrep
+                        ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Preparing your questions…</>
+                        : '🎯 Generate Interview Prep'}
+                    </button>
+                    {prepError && <p className="text-red-500 text-xs">{prepError}</p>}
                   </div>
                 )}
               </div>

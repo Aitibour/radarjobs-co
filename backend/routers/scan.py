@@ -346,26 +346,26 @@ One to two sentences highlighting key expertise. Naturally incorporate relevant 
 TECHNICAL COMPETENCIES
 Category 1: skill, skill, skill
 Category 2: skill, skill, skill
-(Group skills into 5-7 named categories — e.g. Virtualization, Systems, Cloud & Storage, Automation, Networking, Support & ITSM. Add missing keywords to the most relevant category.)
+(Group skills into 5-7 named categories ï¿½ e.g. Virtualization, Systems, Cloud & Storage, Automation, Networking, Support & ITSM. Add missing keywords to the most relevant category.)
 
 PROFESSIONAL EXPERIENCE
-Job Title | Company | City, Province | YYYY – YYYY
-• Achievement or responsibility starting with action verb
-• Achievement or responsibility
+Job Title | Company | City, Province | YYYY ï¿½ YYYY
+ï¿½ Achievement or responsibility starting with action verb
+ï¿½ Achievement or responsibility
 (Repeat for each role, newest first. Weave in missing keywords naturally where relevant.)
 
 CERTIFICATIONS
 Cert1 | Cert2 | Cert3 (pipe-separated on one line)
 
 EDUCATION
-Degree Name | Institution | City | YYYY – YYYY
+Degree Name | Institution | City | YYYY ï¿½ YYYY
 (one line per qualification)
 
 ABSOLUTE RULES:
-- Bullets use ONLY the "•" character — NEVER dashes (-) or asterisks (*)
+- Bullets use ONLY the "ï¿½" character ï¿½ NEVER dashes (-) or asterisks (*)
 - Section headers exactly as shown above in ALL CAPS
 - NO markdown, NO bold/italic markup, NO tables, NO columns
-- Plain text only — 100% ATS compatible
+- Plain text only ï¿½ 100% ATS compatible
 - Do NOT invent experience or alter any facts
 - Missing keywords to incorporate: {keywords_str}
 
@@ -417,3 +417,65 @@ Rules:
     except Exception as exc:
         logger.error("cover_letter: failed â€” %s", exc)
         raise HTTPException(status_code=500, detail="Cover letter generation failed") from exc
+
+
+class InterviewPrepRequest(BaseModel):
+    cv_text: str
+    job_title: str
+    company: str
+    job_description: str
+
+
+class InterviewQuestion(BaseModel):
+    question: str
+    coached_answer: str
+
+
+class InterviewPrepResponse(BaseModel):
+    opening_pitch: str
+    questions: list[InterviewQuestion]
+
+
+@router.post("/interview-prep", response_model=InterviewPrepResponse)
+async def generate_interview_prep(request: InterviewPrepRequest) -> InterviewPrepResponse:
+    """Generate tailored interview questions and coached answers based on CV and job."""
+    if not request.cv_text.strip():
+        raise HTTPException(status_code=422, detail="cv_text must not be empty")
+
+    prompt = f"""You are an expert interview coach. Given the job description and candidate CV below, produce structured interview preparation output.
+
+Job Title: {request.job_title}
+Company: {request.company}
+Job Description:
+---
+{request.job_description[:2000]}
+---
+Candidate CV:
+---
+{request.cv_text[:3000]}
+---
+
+Return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
+{{
+  "opening_pitch": "A 3-4 sentence tell me about yourself tailored to this specific role and company, written in first person from the candidate's perspective.",
+  "questions": [
+    {{
+      "question": "Specific interview question likely to be asked for this role",
+      "coached_answer": "A strong coached answer in first person using the candidate's actual experience from the CV. 2-4 sentences. Specific, not generic."
+    }}
+  ]
+}}
+
+Generate exactly 5 questions. Base everything on the candidate's actual CV â€” do not invent experience."""
+
+    try:
+        import services.ai_router as ai_router
+        import json, re
+        raw = await ai_router.ai_complete(prompt)
+        cleaned = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw.strip(), flags=re.MULTILINE)
+        data = json.loads(cleaned)
+        questions = [InterviewQuestion(**q) for q in data["questions"]]
+        return InterviewPrepResponse(opening_pitch=data["opening_pitch"], questions=questions)
+    except Exception as exc:
+        logger.error("interview_prep: failed â€” %s", exc)
+        raise HTTPException(status_code=500, detail="Interview prep generation failed") from exc

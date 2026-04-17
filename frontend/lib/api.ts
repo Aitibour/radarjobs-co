@@ -120,3 +120,28 @@ export async function generateCoverLetter(
   const data = await res.json()
   return data.cover_letter
 }
+
+export interface InterviewQuestion {
+  question: string
+  coached_answer: string
+}
+
+export interface InterviewPrepResult {
+  opening_pitch: string
+  questions: InterviewQuestion[]
+}
+
+export async function generateInterviewPrep(
+  cv_text: string,
+  job_title: string,
+  company: string,
+  job_description: string,
+  token?: string
+): Promise<InterviewPrepResult> {
+  const res = await fetchWithAuth('/scan/interview-prep', {
+    method: 'POST',
+    body: JSON.stringify({ cv_text, job_title, company, job_description }),
+  }, token)
+  if (!res.ok) throw new Error('Interview prep generation failed')
+  return res.json()
+}
