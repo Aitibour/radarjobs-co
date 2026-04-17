@@ -3,7 +3,9 @@ import Stripe from 'stripe'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2026-03-25.dahlia' })
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+}
 
 const PRICES = {
   monthly: process.env.STRIPE_PRICE_MONTHLY ?? '',
@@ -12,6 +14,7 @@ const PRICES = {
 
 export async function POST(req: NextRequest) {
   try {
+    const stripe = getStripe()
     const { plan } = await req.json() as { plan: 'monthly' | 'annual' }
     const priceId = PRICES[plan]
     if (!priceId) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })

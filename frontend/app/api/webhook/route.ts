@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createServerClient } from '@supabase/ssr'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2026-03-25.dahlia' })
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+}
 
 function serviceSupabase() {
   return createServerClient(
@@ -34,9 +35,11 @@ async function upsertSubscription(
 export async function POST(request: NextRequest) {
   const body = await request.text()
   const sig  = request.headers.get('stripe-signature') ?? ''
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
 
   // ── Stripe webhook ────────────────────────────────────────────────────────
   if (sig && webhookSecret) {
+    const stripe = getStripe()
     let event: Stripe.Event
     try {
       event = stripe.webhooks.constructEvent(body, sig, webhookSecret)
