@@ -14,6 +14,24 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- subscriptions: Stripe subscription state per user
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+  id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            UUID        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE UNIQUE,
+  stripe_customer_id TEXT        NOT NULL,
+  plan               TEXT        NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro')),
+  status             TEXT        NOT NULL DEFAULT 'inactive',
+  expires_at         TIMESTAMPTZ,
+  updated_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- scans: one row per scan run, used for free-tier rate limiting
+CREATE TABLE IF NOT EXISTS public.scans (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        REFERENCES public.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- cvs: one CV per user (upsert on updated_at)
 CREATE TABLE IF NOT EXISTS public.cvs (
   id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -76,11 +94,13 @@ CREATE INDEX IF NOT EXISTS idx_jobs_scraped_at  ON public.jobs     (scraped_at D
 -- ROW LEVEL SECURITY — enable on all tables
 -- ─────────────────────────────────────────────
 
-ALTER TABLE public.users       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.cvs         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.jobs        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.matches     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.alert_prefs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cvs            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jobs           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.matches        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alert_prefs    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scans          ENABLE ROW LEVEL SECURITY;
 
 -- ─────────────────────────────────────────────
 -- RLS POLICIES — users
@@ -240,6 +260,47 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+-- ─────────────────────────────────────────────
+-- RLS POLICIES — subscriptions
+-- ─────────────────────────────────────────────
+
+CREATE POLICY "subscriptions_select_own"
+  ON public.subscriptions FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "subscriptions_service_all"
+  ON public.subscriptions FOR ALL
+  TO service_role
+  USING (true) WITH CHECK (true);
+
+-- ─────────────────────────────────────────────
+-- RLS POLICIES — scans
+-- ─────────────────────────────────────────────
+
+CREATE POLICY "scans_select_own"
+  ON public.scans FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "scans_insert_own"
+  ON public.scans FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "scans_service_all"
+  ON public.scans FOR ALL
+  TO service_role
+  USING (true) WITH CHECK (true);
+
+-- ─────────────────────────────────────────────
+-- INDEXES — new tables
+-- ─────────────────────────────────────────────
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id  ON public.subscriptions (user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_customer ON public.subscriptions (stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_scans_user_created     ON public.scans (user_id, created_at DESC);
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created

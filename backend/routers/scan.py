@@ -156,6 +156,40 @@ def _upsert_results(
 # ---------------------------------------------------------------------------
 
 _SCAN_TIMEOUT_SECONDS = 90  # browser gets a 504 rather than a dropped connection
+FREE_SCAN_LIMIT = 3
+
+
+def _check_scan_limit(user_id: str) -> None:
+    """Raise 403 with upgrade=true if a free user has hit the monthly scan cap."""
+    try:
+        client = get_supabase_client()
+        # Is this user Pro?
+        sub = client.table("subscriptions").select("plan,status,expires_at").eq("user_id", user_id).maybe_single().execute()
+        if sub.data and sub.data.get("plan") == "pro" and sub.data.get("status") == "active":
+            return  # Pro — no limit
+
+        # Count scans in the last 30 days
+        from datetime import datetime, timedelta, timezone
+        since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        result = client.table("scans").select("id", count="exact").eq("user_id", user_id).gte("created_at", since).execute()
+        count = result.count or 0
+        if count >= FREE_SCAN_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail={"upgrade": True, "scans_used": count, "limit": FREE_SCAN_LIMIT},
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("scan limit check failed (non-fatal) — %s", exc)
+
+
+def _record_scan(user_id: str) -> None:
+    """Insert a scan record for rate-limit tracking."""
+    try:
+        get_supabase_client().table("scans").insert({"user_id": user_id}).execute()
+    except Exception as exc:
+        logger.warning("scan record insert failed (non-fatal) — %s", exc)
 
 
 @router.post("", response_model=ScanResponse)
@@ -174,6 +208,10 @@ async def run_scan(
         raise HTTPException(status_code=422, detail="cv_text must not be empty")
     if not request.job_title.strip():
         raise HTTPException(status_code=422, detail="job_title must not be empty")
+
+    user_id = _extract_user_id(authorization)
+    if user_id:
+        _check_scan_limit(user_id)
 
     try:
         return await asyncio.wait_for(
@@ -239,10 +277,10 @@ async def _run_scan_pipeline(
     # 5. Persist to Supabase if user is authenticated (non-blocking on failure)
     user_id = _extract_user_id(authorization)
     if user_id:
-        # Run in a separate task so DB latency doesn't block the response
         asyncio.create_task(
             asyncio.to_thread(_upsert_results, user_id, jobs, results_sorted)
         )
+        asyncio.create_task(asyncio.to_thread(_record_scan, user_id))
 
     # 6. Build response
     match_responses = []

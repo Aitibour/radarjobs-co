@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
 import CVUpload from '@/components/CVUpload'
 import JobCard from '@/components/JobCard'
-import { extractCV, scanCV } from '@/lib/api'
+import { extractCV, scanCV, UpgradeRequiredError } from '@/lib/api'
 import type { JobMatch, ScanResponse, ExtractResponse } from '@/lib/api'
+import UpgradeModal from '@/components/UpgradeModal'
 import clsx from 'clsx'
 
 type Step = 'start' | 'confirm' | 'results'
@@ -65,6 +66,8 @@ export default function ScanPage() {
   const [isScanning, setIsScanning] = useState(false)
   const [results, setResults] = useState<ScanResponse | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [scansUsed, setScansUsed] = useState(3)
 
   const supabase = getSupabaseClient()
 
@@ -104,7 +107,12 @@ export default function ScanPage() {
       sessionStorage.setItem('radarjobs_scan', JSON.stringify({ matches: response.matches, cvText: effectiveCv, jobTitle, location }))
       setResults(response); setStep('results')
     } catch (err: unknown) {
-      setScanError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      if (err instanceof UpgradeRequiredError) {
+        setScansUsed(err.scansUsed)
+        setShowUpgradeModal(true)
+      } else {
+        setScanError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      }
     } finally {
       setIsScanning(false)
     }
@@ -121,6 +129,9 @@ export default function ScanPage() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
+      {showUpgradeModal && (
+        <UpgradeModal scansUsed={scansUsed} onClose={() => setShowUpgradeModal(false)} />
+      )}
 
       {/* ── Header ── */}
       <div className="shrink-0 bg-gradient-to-r from-teal-dark to-teal-mid px-6 py-3">

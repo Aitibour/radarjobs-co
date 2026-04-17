@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { redirectToCheckout } from '@/lib/stripe'
 
 const FREE_FEATURES = [
   '3 CV scans per month',
@@ -49,6 +50,17 @@ const FAQS = [
 export default function PricingPage() {
   const [annual, setAnnual] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+
+  const handleUpgrade = async () => {
+    setCheckoutLoading(true)
+    try {
+      await redirectToCheckout(annual ? 'annual' : 'monthly')
+    } catch {
+      setCheckoutLoading(false)
+      alert('Could not start checkout. Please try again.')
+    }
+  }
 
   const proPrice = annual ? 99 : 12
   const proLabel = annual ? '/year' : '/month'
@@ -160,9 +172,10 @@ export default function PricingPage() {
               ))}
             </ul>
             <button
-              onClick={() => alert('Stripe coming soon — join the waitlist at a.aitibour@gmail.com')}
-              className="w-full py-3.5 rounded-xl bg-white text-teal-dark font-extrabold text-sm hover:bg-teal-light transition-colors shadow-md">
-              Get Pro →
+              onClick={handleUpgrade}
+              disabled={checkoutLoading}
+              className="w-full py-3.5 rounded-xl bg-white text-teal-dark font-extrabold text-sm hover:bg-teal-light disabled:opacity-60 transition-colors shadow-md">
+              {checkoutLoading ? 'Redirecting…' : 'Get Pro →'}
             </button>
             {annual && (
               <p className="text-center text-xs text-white/50 mt-3">Billed as $99/year · Cancel anytime</p>

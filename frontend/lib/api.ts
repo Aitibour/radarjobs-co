@@ -66,11 +66,23 @@ export async function extractCV(cv_text: string, token?: string): Promise<Extrac
   return res.json()
 }
 
+export class UpgradeRequiredError extends Error {
+  scansUsed: number
+  constructor(scansUsed: number) {
+    super('upgrade_required')
+    this.scansUsed = scansUsed
+  }
+}
+
 export async function scanCV(data: ScanRequest, token?: string): Promise<ScanResponse> {
   const res = await fetchWithAuth('/scan', {
     method: 'POST',
     body: JSON.stringify(data),
   }, token)
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}))
+    if (body?.detail?.upgrade) throw new UpgradeRequiredError(body.detail.scans_used ?? 3)
+  }
   if (!res.ok) throw new Error(`Scan failed: ${res.statusText}`)
   return res.json()
 }
