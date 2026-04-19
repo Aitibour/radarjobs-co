@@ -172,23 +172,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Stats strip */}
-        <div className="bg-black/20 border-t border-white/10 py-3 px-8">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              {[
-                { value: '10 000+',      label: 'jobs scanned daily' },
-                { value: 'AI-powered',   label: 'match scoring'      },
-                { value: 'Free forever', label: 'no credit card'     },
-              ].map(({ value, label }) => (
-                <div key={value} className="flex items-center gap-1.5">
-                  <span className="text-sm font-bold text-white">{value}</span>
-                  <span className="text-xs text-white/50">{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ─── How it works ───────────────────────────── */}
