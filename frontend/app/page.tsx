@@ -178,34 +178,28 @@ export default function LandingPage() {
       <div className="py-24 px-8 bg-white">
         <div className="max-w-4xl mx-auto">
           <p className="text-teal-mid text-sm font-bold uppercase tracking-wider text-center mb-3">How it works</p>
-          <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-16">From CV to perfect match in minutes</h2>
+          <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-16">Three steps to your next role</h2>
 
-          <div className="grid md:grid-cols-3 gap-10">
+          <div className="grid md:grid-cols-3 gap-8">
             {[
               {
                 n: '01',
-                icon: '📄',
                 title: 'Upload your CV',
                 desc: 'Drop a PDF or paste your text. Our AI extracts your skills, experience, and job title automatically.',
               },
               {
                 n: '02',
-                icon: '🔍',
                 title: 'Radar scans 50+ boards',
                 desc: 'We search LinkedIn, Indeed, Glassdoor, Google Jobs and 46 more — all jobs from the last 15 days.',
               },
               {
                 n: '03',
-                icon: '🎯',
                 title: 'Get ranked matches',
                 desc: 'Every job is scored against your profile. See matched keywords, gaps, and AI-powered suggestions.',
               },
-            ].map(({ n, icon, title, desc }) => (
-              <div key={n} className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-2xl bg-teal-dark/5 flex items-center justify-center text-3xl mb-4">
-                  {icon}
-                </div>
-                <span className="text-xs font-black text-teal-mid/50 tracking-widest mb-2">{n}</span>
+            ].map(({ n, title, desc }) => (
+              <div key={n} className="flex flex-col">
+                <span className="text-5xl font-black text-teal-dark/10 leading-none mb-4">{n}</span>
                 <h3 className="text-lg font-extrabold text-gray-900 mb-2">{title}</h3>
                 <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
               </div>
@@ -232,8 +226,9 @@ export default function LandingPage() {
           <div className="flex items-center justify-center gap-3 mb-10">
             <span className={`text-sm font-semibold ${!annual ? 'text-gray-900' : 'text-gray-400'}`}>Monthly</span>
             <button onClick={() => setAnnual(!annual)}
-              className={`relative w-12 h-6 rounded-full transition-colors ${annual ? 'bg-teal-mid' : 'bg-gray-200'}`}>
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${annual ? 'translate-x-7' : 'translate-x-1'}`}/>
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${annual ? 'bg-teal-mid' : 'bg-gray-300'}`}>
+              <span className="absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                style={{ left: annual ? '26px' : '4px' }}/>
             </button>
             <span className={`text-sm font-semibold ${annual ? 'text-gray-900' : 'text-gray-400'}`}>
               Annual
