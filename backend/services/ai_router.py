@@ -19,24 +19,26 @@ async def ai_complete(prompt: str) -> str:
         _try_groq,
         _try_openrouter,
     ]
-    last_error = None
+    errors = []
     for provider in providers:
         try:
             result = await provider(prompt)
             return result
         except Exception as e:
-            last_error = e
+            errors.append(f"{provider.__name__}: {e}")
             logger.warning(f"Provider {provider.__name__} failed: {e}")
             continue
     raise HTTPException(
         status_code=503,
-        detail=f"All AI providers failed. Last error: {last_error}",
+        detail=f"All AI providers failed. Errors: {' | '.join(errors)}",
     )
 
 
 async def _try_gemini(prompt: str) -> str:
     """Call Gemini 2.0 Flash (stable) via Google Generative Language API."""
-    api_key = os.environ["GEMINI_API_KEY"]
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not set")
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-2.0-flash:generateContent?key={api_key}"
@@ -61,7 +63,9 @@ async def _try_gemini(prompt: str) -> str:
 
 async def _try_groq(prompt: str) -> str:
     """Call Groq with Llama 3.3 70B via OpenAI-compatible endpoint."""
-    api_key = os.environ["GROQ_API_KEY"]
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY not set")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}"}
     payload = {
@@ -87,7 +91,9 @@ async def _try_groq(prompt: str) -> str:
 
 async def _try_openrouter(prompt: str) -> str:
     """Call OpenRouter with DeepSeek R1 free model."""
-    api_key = os.environ["OPENROUTER_API_KEY"]
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}"}
     payload = {

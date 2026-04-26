@@ -419,7 +419,7 @@ Return ONLY the enhanced CV text. No preamble, no commentary."""
         return EnhanceCVResponse(enhanced_cv=enhanced.strip())
     except Exception as exc:
         logger.error("enhance_cv: failed — %s", exc)
-        raise HTTPException(status_code=500, detail="CV enhancement failed") from exc
+        raise HTTPException(status_code=500, detail=f"CV enhancement failed: {exc}") from exc
 
 
 @router.post("/cover-letter", response_model=CoverLetterResponse)
