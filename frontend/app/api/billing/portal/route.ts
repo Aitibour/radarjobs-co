@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 function getStripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+  const key = (process.env.STRIPE_SECRET_KEY ?? "").trim(); return new Stripe(key, { apiVersion: '2026-03-25.dahlia' })
 }
 
 export async function POST() {

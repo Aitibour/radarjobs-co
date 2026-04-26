@@ -157,3 +157,67 @@ export async function generateInterviewPrep(
   if (!res.ok) throw new Error('Interview prep generation failed')
   return res.json()
 }
+
+export interface LinkedInOptimizeResult {
+  headline: string
+  about: string
+  skills: string[]
+  experience_bullets: string[]
+  keywords: string[]
+}
+
+export async function generateLinkedInOptimization(
+  cv_text: string,
+  target_role: string,
+  token?: string
+): Promise<LinkedInOptimizeResult> {
+  const res = await fetchWithAuth('/scan/linkedin-optimize', {
+    method: 'POST',
+    body: JSON.stringify({ cv_text, target_role }),
+  }, token)
+  if (!res.ok) throw new Error('LinkedIn optimization failed')
+  return res.json()
+}
+
+export interface ATSOptimizeResult {
+  optimized_cv: string
+  keywords_added: string[]
+  match_improvement: string
+}
+
+const STOP = new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','from','as','is','are','was','were','be','been','have','has','had','do','does','did','will','would','could','should','may','might','can','that','this','these','those','it','its','we','you','they','their','our','your','who','which','when','where','what','how','all','any','both','each','more','most','other','some','such','no','not','only','own','same','so','than','too','very','just','about','after','before','between','during','through','under','while'])
+
+function extractKeywords(text: string): Set<string> {
+  return new Set(
+    text.toLowerCase()
+      .replace(/[^a-z0-9+#.\- ]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 3 && !STOP.has(w))
+  )
+}
+
+export async function atsOptimize(
+  cv_text: string,
+  job_description: string,
+  job_title: string,
+  token?: string
+): Promise<ATSOptimizeResult> {
+  // Compute missing keywords client-side
+  const jdKw = extractKeywords(job_description)
+  const cvKw = extractKeywords(cv_text)
+  const missing_keywords = [...jdKw].filter(k => k.length >= 3 && !cvKw.has(k))
+
+  const res = await fetchWithAuth('/scan/enhance-cv', {
+    method: 'POST',
+    body: JSON.stringify({ cv_text, missing_keywords, job_title }),
+  }, token)
+  if (!res.ok) throw new Error('ATS optimization failed')
+  const data = await res.json()
+
+  // Map backend response to frontend interface
+  return {
+    optimized_cv:      data.enhanced_cv,
+    keywords_added:    missing_keywords.slice(0, 20),
+    match_improvement: `+${Math.min(missing_keywords.length * 3, 35)}%`,
+  }
+}

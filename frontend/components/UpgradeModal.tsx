@@ -5,11 +5,11 @@ import { redirectToCheckout } from '@/lib/stripe'
 
 const PRO_HIGHLIGHTS = [
   'Unlimited CV scans',
-  '15 job matches per scan',
-  '✨ Magic AI — add missing keywords',
-  '📝 AI cover letter generation',
-  '🎯 Interview prep questions',
-  '⬇️ Download CV as PDF or Word',
+  'Unlimited AI optimizations',
+  'AI cover letter generation',
+  'AI interview prep questions',
+  'LinkedIn profile optimizer',
+  'Download CV as PDF or Word',
 ]
 
 interface Props {
@@ -18,9 +18,9 @@ interface Props {
 }
 
 export default function UpgradeModal({ scansUsed, onClose }: Props) {
-  const [loading, setLoading] = useState<'monthly' | 'annual' | null>(null)
+  const [loading, setLoading] = useState<'monthly' | 'quarterly' | null>(null)
 
-  const handleUpgrade = async (plan: 'monthly' | 'annual') => {
+  const handleUpgrade = async (plan: 'monthly' | 'quarterly') => {
     setLoading(plan)
     try {
       await redirectToCheckout(plan)
@@ -40,9 +40,9 @@ export default function UpgradeModal({ scansUsed, onClose }: Props) {
             className="absolute top-4 right-4 text-white/50 hover:text-white text-lg leading-none">✕</button>
           <p className="text-teal-accent text-xs font-bold uppercase tracking-wider mb-1">Free limit reached</p>
           <h2 className="text-xl font-extrabold text-white mb-1">
-            You've used {scansUsed}/3 free scans
+            You've used {scansUsed}/5 free scans
           </h2>
-          <p className="text-white/70 text-sm">Upgrade to Pro for unlimited scans and all AI features.</p>
+          <p className="text-white/70 text-sm">Upgrade to unlock unlimited scans and all AI features.</p>
         </div>
 
         {/* Features */}
@@ -50,7 +50,9 @@ export default function UpgradeModal({ scansUsed, onClose }: Props) {
           <ul className="flex flex-col gap-2 mb-5">
             {PRO_HIGHLIGHTS.map(f => (
               <li key={f} className="flex items-center gap-2.5 text-sm text-gray-700">
-                <span className="text-teal-mid shrink-0">✓</span>
+                <svg className="w-4 h-4 text-teal-mid shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
                 {f}
               </li>
             ))}
@@ -59,16 +61,16 @@ export default function UpgradeModal({ scansUsed, onClose }: Props) {
           {/* CTA buttons */}
           <div className="flex flex-col gap-2">
             <button
-              onClick={() => handleUpgrade('monthly')}
+              onClick={() => handleUpgrade('quarterly')}
               disabled={!!loading}
               className="w-full py-3.5 rounded-xl bg-gradient-to-r from-teal-dark to-teal-mid text-white font-extrabold text-sm hover:opacity-90 disabled:opacity-60 transition-all shadow-md">
-              {loading === 'monthly' ? 'Redirecting…' : 'Get Pro — $12/month →'}
+              {loading === 'quarterly' ? 'Redirecting…' : 'Quarterly — $19.98/mo · Save 40% →'}
             </button>
             <button
-              onClick={() => handleUpgrade('annual')}
+              onClick={() => handleUpgrade('monthly')}
               disabled={!!loading}
               className="w-full py-3 rounded-xl border-2 border-teal-mid text-teal-dark font-bold text-sm hover:bg-teal-light disabled:opacity-60 transition-colors">
-              {loading === 'annual' ? 'Redirecting…' : 'Annual plan — $99/year (save 31%)'}
+              {loading === 'monthly' ? 'Redirecting…' : 'Monthly — $39.95/month'}
             </button>
           </div>
 

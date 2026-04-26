@@ -8,7 +8,7 @@ export function getStripe() {
   return stripePromise
 }
 
-export async function redirectToCheckout(plan: 'monthly' | 'annual') {
+export async function redirectToCheckout(plan: 'monthly' | 'quarterly') {
   const res = await fetch('/api/billing/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

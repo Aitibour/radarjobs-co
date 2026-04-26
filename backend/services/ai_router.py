@@ -35,11 +35,11 @@ async def ai_complete(prompt: str) -> str:
 
 
 async def _try_gemini(prompt: str) -> str:
-    """Call Gemini 2.0 Flash via Google Generative Language API."""
+    """Call Gemini 2.0 Flash (stable) via Google Generative Language API."""
     api_key = os.environ["GEMINI_API_KEY"]
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.5-flash:generateContent?key={api_key}"
+        f"gemini-2.0-flash:generateContent?key={api_key}"
     )
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
 

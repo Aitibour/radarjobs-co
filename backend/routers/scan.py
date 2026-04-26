@@ -517,3 +517,127 @@ Generate exactly 5 questions. Base everything on the candidate's actual CV — d
     except Exception as exc:
         logger.error("interview_prep: failed — %s", exc)
         raise HTTPException(status_code=500, detail="Interview prep generation failed") from exc
+
+
+class LinkedInOptimizeRequest(BaseModel):
+    cv_text: str
+    target_role: str = ""
+
+
+class LinkedInOptimizeResponse(BaseModel):
+    headline: str
+    about: str
+    skills: list[str]
+    experience_bullets: list[str]
+    keywords: list[str]
+
+
+@router.post("/linkedin-optimize", response_model=LinkedInOptimizeResponse)
+async def linkedin_optimize(request: LinkedInOptimizeRequest) -> LinkedInOptimizeResponse:
+    """Generate LinkedIn profile sections optimized from a CV."""
+    if not request.cv_text.strip():
+        raise HTTPException(status_code=422, detail="cv_text must not be empty")
+
+    role_context = f" targeting the role of {request.target_role}" if request.target_role else ""
+
+    prompt = f"""You are a LinkedIn profile expert. Given the CV below{role_context}, generate optimized LinkedIn profile sections.
+
+CV:
+---
+{request.cv_text[:4000]}
+---
+
+Return a JSON object with this exact structure (no markdown, no code fences, raw JSON only):
+{{
+  "headline": "A compelling LinkedIn headline under 220 characters. Include role title, 2-3 key skills or specialisations, and an industry signal. Use | as separator.",
+  "about": "A 3-paragraph LinkedIn About section written in first person. Paragraph 1: who you are and your core value. Paragraph 2: key achievements with metrics. Paragraph 3: what you are looking for. Total 150-250 words.",
+  "skills": ["skill1", "skill2", ...],
+  "experience_bullets": ["Achievement bullet 1 with metric", "Achievement bullet 2 with metric", ...],
+  "keywords": ["keyword1", "keyword2", ...]
+}}
+
+Rules:
+- skills: exactly 10 high-value LinkedIn skills drawn from the CV
+- experience_bullets: exactly 5 strong achievement bullets with quantified results, in first person
+- keywords: exactly 8 recruiter search keywords this person should appear for
+- everything must be grounded in the actual CV — do not invent experience"""
+
+    try:
+        import services.ai_router as ai_router
+        import json, re
+        raw = await ai_router.ai_complete(prompt)
+        cleaned = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw.strip(), flags=re.MULTILINE)
+        data = json.loads(cleaned)
+        return LinkedInOptimizeResponse(
+            headline=data["headline"],
+            about=data["about"],
+            skills=data["skills"],
+            experience_bullets=data["experience_bullets"],
+            keywords=data["keywords"],
+        )
+    except Exception as exc:
+        logger.error("linkedin_optimize: failed — %s", exc)
+        raise HTTPException(status_code=500, detail="LinkedIn optimization failed") from exc
+
+
+class ATSOptimizeRequest(BaseModel):
+    cv_text: str
+    job_description: str
+    job_title: str = ""
+
+
+class ATSOptimizeResponse(BaseModel):
+    optimized_cv: str
+    keywords_added: list[str]
+    match_improvement: str
+
+
+@router.post("/ats-optimize", response_model=ATSOptimizeResponse)
+async def ats_optimize(request: ATSOptimizeRequest) -> ATSOptimizeResponse:
+    """Rewrite CV to match a job description with exact ATS keywords."""
+    if not request.cv_text.strip() or not request.job_description.strip():
+        raise HTTPException(status_code=422, detail="cv_text and job_description are required")
+
+    prompt = f"""You are a professional ATS resume expert. Rewrite the candidate's CV to maximize ATS match with the job description below.
+
+Job Title: {request.job_title or "Not specified"}
+Job Description:
+---
+{request.job_description[:2500]}
+---
+Original CV:
+---
+{request.cv_text[:3000]}
+---
+
+Rules:
+1. Preserve all true experience — do not invent anything
+2. Naturally insert exact keywords from the JD into the CV text
+3. Mirror the JD's language for responsibilities and skills
+4. Keep the same CV structure but tighten and sharpen every bullet
+5. Every bullet should start with a strong action verb
+6. Quantify achievements wherever possible using numbers from the original CV
+
+Return a JSON object (raw JSON, no markdown, no code fences):
+{{
+  "optimized_cv": "The full rewritten CV text, plain text, sections separated by newlines",
+  "keywords_added": ["keyword1", "keyword2", ...],
+  "match_improvement": "Brief one-sentence explanation of the main improvements made"
+}}
+
+keywords_added: list of 5–10 exact JD keywords that were woven into the optimized CV."""
+
+    try:
+        import services.ai_router as ai_router
+        import json, re
+        raw = await ai_router.ai_complete(prompt)
+        cleaned = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw.strip(), flags=re.MULTILINE)
+        data = json.loads(cleaned)
+        return ATSOptimizeResponse(
+            optimized_cv=data["optimized_cv"],
+            keywords_added=data["keywords_added"],
+            match_improvement=data["match_improvement"],
+        )
+    except Exception as exc:
+        logger.error("ats_optimize: failed — %s", exc)
+        raise HTTPException(status_code=500, detail="ATS optimization failed") from exc

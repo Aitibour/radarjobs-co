@@ -4,21 +4,18 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 function getStripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+  const key = (process.env.STRIPE_SECRET_KEY ?? '').trim()
+  return new Stripe(key, { apiVersion: '2026-03-25.dahlia' })
 }
 
 const PRICES = {
-  monthly: process.env.STRIPE_PRICE_MONTHLY ?? '',
-  annual:  process.env.STRIPE_PRICE_ANNUAL  ?? '',
+  monthly:   () => (process.env.STRIPE_PRICE_MONTHLY ?? '').trim(),
+  quarterly: () => (process.env.STRIPE_PRICE_ANNUAL  ?? '').trim(),
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const stripe = getStripe()
-    const { plan } = await req.json() as { plan: 'monthly' | 'annual' }
-    const priceId = PRICES[plan]
-    if (!priceId) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
-
+    // Require authenticated user server-side
     const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,14 +23,25 @@ export async function POST(req: NextRequest) {
       { cookies: { get: (n) => cookieStore.get(n)?.value } }
     )
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+
+    const body = await req.json() as { plan: 'monthly' | 'quarterly' }
+    const { plan } = body
+    const priceId = PRICES[plan]?.()
+    if (!priceId) return NextResponse.json({ error: 'Invalid plan or missing price configuration' }, { status: 400 })
+
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://radarjobs.co').trim()
+    const stripe = getStripe()
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/scan?upgraded=1`,
-      cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
-      ...(user ? { client_reference_id: user.id, customer_email: user.email } : {}),
+      client_reference_id: user.id,
+      customer_email: user.email,
+      success_url: `${appUrl}/dashboard?upgraded=1`,
+      cancel_url:  `${appUrl}/pricing`,
+      allow_promotion_codes: true,
     })
 
     return NextResponse.json({ url: session.url })

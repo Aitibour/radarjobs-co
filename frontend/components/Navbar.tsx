@@ -1,137 +1,163 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Link from 'next/link'
-import { getSupabaseClient } from '@/lib/supabase'
+import { useState, useRef } from 'react'
+import { usePathname } from 'next/navigation'
+
+type DropItem = { label: string; desc: string; href: string }
+type NavItem =
+  | { label: string; href: string; items?: never }
+  | { label: string; href?: string; items: DropItem[] }
+
+const NAV: NavItem[] = [
+  {
+    label: 'Job Match',
+    items: [
+      { label: 'AI Job Finder',    desc: 'Search 50+ job boards by title + filters', href: '/scan' },
+      { label: 'Keyword Analyzer', desc: 'Score your CV against any job posting',    href: '/keywords' },
+    ],
+  },
+  {
+    label: 'ATS Resume',
+    items: [
+      { label: 'ATS Optimizer', desc: 'Beat applicant tracking systems',    href: '/ats-resume' },
+      { label: 'CV Templates',  desc: 'ATS-friendly templates to download', href: '/cv-templates' },
+    ],
+  },
+  {
+    label: 'Cover Letter',
+    items: [
+      { label: 'AI Cover Letter',    desc: 'Tailored cover letters in seconds', href: '/cover-letter' },
+      { label: 'Cover Letter Guide', desc: 'Templates & best practices',        href: '/resources/how-to-write-cover-letter' },
+    ],
+  },
+  {
+    label: 'LinkedIn',
+    items: [
+      { label: 'Headline Generator',   desc: 'AI headline from your CV upload',      href: '/linkedin' },
+      { label: 'Profile Gap Analysis', desc: 'HR-specialist review of your profile', href: '/profile-gap' },
+    ],
+  },
+  {
+    label: 'Interview Prep',
+    items: [
+      { label: 'Interview Q&A',  desc: 'Top 10 questions tailored to your role', href: '/interview-prep' },
+      { label: 'Opening Pitch',  desc: 'Generate your perfect opening pitch',    href: '/interview-prep' },
+    ],
+  },
+  { label: 'Pricing', href: '/pricing' },
+  {
+    label: 'Resources',
+    items: [
+      { label: 'ATS Guide',    desc: 'How applicant tracking systems work', href: '/resources/what-is-ats' },
+      { label: 'Resume Tips',  desc: 'Land more interviews faster',         href: '/resources/how-to-write-resume' },
+      { label: 'CV Templates', desc: 'ATS-friendly designs, free download', href: '/cv-templates' },
+    ],
+  },
+  { label: 'Organizations', href: '/organizations' },
+]
 
 export default function Navbar() {
-  const router = useRouter()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [signingOut, setSigningOut] = useState(false)
+  const path = usePathname()
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  async function handleSignOut() {
-    setSigningOut(true)
-    try {
-      const supabase = getSupabaseClient()
-      await supabase.auth.signOut()
-      router.push('/')
-    } finally {
-      setSigningOut(false)
-    }
+  const handleMouseEnter = (label: string) => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setOpenMenu(label)
   }
 
-  const navLinks = (
-    <>
-      <Link
-        href="/dashboard"
-        className="text-sm font-medium text-gray-600 hover:text-teal-dark transition-colors"
-        onClick={() => setMenuOpen(false)}
-      >
-        Dashboard
-      </Link>
-      <Link
-        href="/scan"
-        className="text-sm font-semibold text-teal-mid hover:opacity-80 transition-opacity"
-        onClick={() => setMenuOpen(false)}
-      >
-        New Scan
-      </Link>
-      <button
-        onClick={handleSignOut}
-        disabled={signingOut}
-        className="text-sm font-medium text-gray-500 hover:text-red-500 transition-colors disabled:opacity-50"
-      >
-        {signingOut ? 'Signing out…' : 'Sign out'}
-      </button>
-    </>
-  )
+  const handleMouseLeave = () => {
+    closeTimer.current = setTimeout(() => setOpenMenu(null), 250)
+  }
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 bg-white border-b border-teal-light shadow-sm">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-        {/* Wordmark */}
-        <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="RadarJobs home">
-          {/* Radar icon: two concentric arcs + center dot */}
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 28 28"
-            fill="none"
-            aria-hidden="true"
-            className="shrink-0"
-          >
-            {/* Outer arc */}
-            <path
-              d="M4 14a10 10 0 0 1 10-10"
-              stroke="#1D9E75"
-              strokeWidth="2"
-              strokeLinecap="round"
-              fill="none"
-            />
-            <path
-              d="M24 14a10 10 0 0 1-10 10"
-              stroke="#1D9E75"
-              strokeWidth="2"
-              strokeLinecap="round"
-              fill="none"
-            />
-            {/* Inner arc */}
-            <path
-              d="M8 14a6 6 0 0 1 6-6"
-              stroke="#5DCAA5"
-              strokeWidth="2"
-              strokeLinecap="round"
-              fill="none"
-            />
-            <path
-              d="M20 14a6 6 0 0 1-6 6"
-              stroke="#5DCAA5"
-              strokeWidth="2"
-              strokeLinecap="round"
-              fill="none"
-            />
-            {/* Center dot */}
-            <circle cx="14" cy="14" r="2.5" fill="#085041" />
-          </svg>
+    <nav className="bg-gradient-to-r from-teal-dark to-teal-mid sticky top-0 z-40 shadow-md">
+      <div className="max-w-7xl mx-auto px-4 flex items-center h-14 gap-0.5">
 
-          <span className="text-xl font-bold tracking-tight">
-            <span className="text-teal-dark">Radar</span>
-            <span className="text-teal-mid">Jobs</span>
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 mr-4 shrink-0">
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+            <path d="M4 14a10 10 0 0 1 10-10" stroke="#5DCAA5" strokeWidth="2.5" strokeLinecap="round"/>
+            <path d="M24 14a10 10 0 0 1-10 10" stroke="#5DCAA5" strokeWidth="2.5" strokeLinecap="round"/>
+            <path d="M8 14a6 6 0 0 1 6-6" stroke="#E1F5EE" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M20 14a6 6 0 0 1-6 6" stroke="#E1F5EE" strokeWidth="2" strokeLinecap="round"/>
+            <circle cx="14" cy="14" r="2.5" fill="white"/>
+          </svg>
+          <span className="text-lg font-black tracking-tight">
+            <span className="text-white">Radar</span><span className="text-teal-accent">Jobs</span>
           </span>
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden sm:flex items-center gap-6" aria-label="Main navigation">
-          {navLinks}
-        </nav>
+        {/* Nav items */}
+        <div className="hidden lg:flex items-center flex-1 gap-0">
+          {NAV.map(item => (
+            <div
+              key={item.label}
+              className="relative"
+              onMouseEnter={() => item.items ? handleMouseEnter(item.label) : undefined}
+              onMouseLeave={item.items ? handleMouseLeave : undefined}
+            >
+              {item.href && !item.items ? (
+                <Link
+                  href={item.href}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                    path === item.href ? 'text-white' : 'text-white/75 hover:text-white'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <>
+                  <button
+                    className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                      openMenu === item.label ? 'text-white bg-white/10' : 'text-white/75 hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                    <svg
+                      className={`w-3.5 h-3.5 transition-transform duration-150 ${openMenu === item.label ? 'rotate-180' : ''}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </button>
 
-        {/* Mobile hamburger */}
-        <button
-          className="sm:hidden p-2 rounded-md text-gray-500 hover:text-teal-dark hover:bg-teal-light transition-colors"
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          {menuOpen ? (
-            /* X icon */
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            /* Hamburger icon */
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          )}
-        </button>
-      </div>
-
-      {/* Mobile dropdown */}
-      {menuOpen && (
-        <div className="sm:hidden border-t border-teal-light bg-white px-4 py-4 flex flex-col gap-4">
-          {navLinks}
+                  {openMenu === item.label && item.items && (
+                    <div
+                      className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
+                      onMouseEnter={() => handleMouseEnter(item.label)}
+                      onMouseLeave={handleMouseLeave}
+                    >
+                      {item.items.map(sub => (
+                        <Link
+                          key={sub.label}
+                          href={sub.href}
+                          className="flex flex-col px-4 py-3 hover:bg-gray-50 transition-colors group"
+                        >
+                          <span className="text-sm font-semibold text-gray-800 group-hover:text-teal-dark">{sub.label}</span>
+                          <span className="text-xs text-gray-400 mt-0.5">{sub.desc}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
         </div>
-      )}
-    </header>
+
+        {/* Right */}
+        <div className="flex items-center gap-2 ml-auto shrink-0">
+          <Link href="/login" className="text-sm font-medium text-white/75 hover:text-white transition-colors px-2 hidden sm:block">
+            Sign in
+          </Link>
+          <Link href="/scan"
+            className="text-sm font-bold bg-white text-teal-dark px-4 py-1.5 rounded-full hover:bg-teal-light hover:scale-105 transition-all duration-200 shadow-sm whitespace-nowrap">
+            Try free →
+          </Link>
+        </div>
+      </div>
+    </nav>
   )
 }

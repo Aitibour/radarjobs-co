@@ -9,28 +9,89 @@
   --color-teal-light: #E1F5EE;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+body { background-color: #ffffff; color: #1a1a1a; }
+html { scroll-behavior: smooth; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #5DCAA5; border-radius: 3px; }
+
+/* ─── Scroll-reveal ─────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s cubic-bezier(.22,1,.36,1), transform 0.65s cubic-bezier(.22,1,.36,1);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+.reveal-delay-5 { transition-delay: 0.5s; }
+
+/* ─── Keyframes ─────────────────────────── */
+@keyframes fadeInUp   { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn     { from { opacity:0; } to { opacity:1; } }
+@keyframes slideLeft  { from { opacity:0; transform:translateX(-24px); } to { opacity:1; transform:translateX(0); } }
+@keyframes slideRight { from { opacity:0; transform:translateX(24px);  } to { opacity:1; transform:translateX(0); } }
+@keyframes scaleIn    { from { opacity:0; transform:scale(0.92); } to { opacity:1; transform:scale(1); } }
+@keyframes float      { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+@keyframes shimmer    { 0% { background-position:-400px 0; } 100% { background-position:400px 0; } }
+@keyframes pulseRing  {
+  0%   { box-shadow: 0 0 0 0 rgba(93,202,165,0.5); }
+  70%  { box-shadow: 0 0 0 14px rgba(93,202,165,0); }
+  100% { box-shadow: 0 0 0 0 rgba(93,202,165,0); }
+}
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+@keyframes typewriter { from { width:0; } to { width:100%; } }
+
+/* ─── Animation utilities ───────────────── */
+.animate-fadeInUp   { animation: fadeInUp   0.65s cubic-bezier(.22,1,.36,1) both; }
+.animate-fadeIn     { animation: fadeIn     0.5s ease both; }
+.animate-slideLeft  { animation: slideLeft  0.65s cubic-bezier(.22,1,.36,1) both; }
+.animate-slideRight { animation: slideRight 0.65s cubic-bezier(.22,1,.36,1) both; }
+.animate-scaleIn    { animation: scaleIn    0.5s cubic-bezier(.22,1,.36,1) both; }
+.animate-float      { animation: float 4s ease-in-out infinite; }
+.animate-pulse-ring { animation: pulseRing 2s ease-out infinite; }
+.animate-gradient   { background-size:200% 200%; animation: gradientShift 6s ease infinite; }
+
+.delay-100 { animation-delay:0.1s; }
+.delay-200 { animation-delay:0.2s; }
+.delay-300 { animation-delay:0.3s; }
+.delay-400 { animation-delay:0.4s; }
+.delay-500 { animation-delay:0.5s; }
+.delay-600 { animation-delay:0.6s; }
+.delay-700 { animation-delay:0.7s; }
+
+/* ─── Skeleton loader ───────────────────── */
+.skeleton {
+  background: linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
-body {
-  background-color: #ffffff;
-  color: #1a1a1a;
+/* ─── Card lift on hover ────────────────── */
+.card-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(8,80,65,0.12);
 }
 
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
+/* ─── Gradient text ─────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg,#085041,#1D9E75,#5DCAA5);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-::-webkit-scrollbar-thumb {
-  background: #5DCAA5;
-  border-radius: 3px;
-}
+/* ─── Cursor blink ──────────────────────── */
+.cursor::after { content:'|'; animation:blink 1s step-end infinite; color:#5DCAA5; }
