@@ -41,7 +41,7 @@ async def _try_gemini(prompt: str) -> str:
         raise RuntimeError("GEMINI_API_KEY not set")
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash:generateContent?key={api_key}"
+        f"gemini-1.5-flash:generateContent?key={api_key}"
     )
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
