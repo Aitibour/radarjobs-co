@@ -22,7 +22,18 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { cookies: { get: (n) => cookieStore.get(n)?.value } }
     )
-    const { data: { user } } = await supabase.auth.getUser()
+    let { data: { user } } = await supabase.auth.getUser()
+
+    // Fallback: Bearer token from Authorization header (client-side sessions)
+    if (!user) {
+      const authHeader = req.headers.get('Authorization')
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+      if (token) {
+        const { data } = await supabase.auth.getUser(token)
+        user = data.user
+      }
+    }
+
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const body = await req.json() as { plan: 'monthly' | 'quarterly' }

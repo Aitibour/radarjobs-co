@@ -1,10 +1,12 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { createClient } from '@/lib/supabase'
+import { redirectToCheckout } from '@/lib/stripe'
 
 const FREE_FEATURES = [
   '5 CV scans on signup',
@@ -20,7 +22,7 @@ const PRO_FEATURES = [
   'Unlimited CV scans',
   'Unlimited AI optimizations',
   'AI cover letter generator',
-  'AI interview prep — questions & coached answers',
+  'AI interview prep â€” questions & coached answers',
   'Unlimited job matches per scan',
   'Unlimited keyword comparisons',
   'Unlimited ATS & recruiter findings',
@@ -34,11 +36,11 @@ const PRO_FEATURES = [
 const FAQS = [
   {
     q: 'What happens after my free scans run out?',
-    a: 'You keep access to your previous results. To run new scans, upgrade for unlimited access — or wait until next month when your 5 free scans reset.',
+    a: 'You keep access to your previous results. To run new scans, upgrade for unlimited access â€” or wait until next month when your 5 free scans reset.',
   },
   {
     q: 'What counts as one scan?',
-    a: 'One scan = one full pipeline run: CV parsing → 50+ job board search → AI scoring. Browsing results or opening a job does not count.',
+    a: 'One scan = one full pipeline run: CV parsing â†’ 50+ job board search â†’ AI scoring. Browsing results or opening a job does not count.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -50,15 +52,15 @@ const FAQS = [
   },
   {
     q: 'What job boards are covered?',
-    a: 'LinkedIn, Indeed, Glassdoor, Google Jobs, and 46+ more — all via the JSearch aggregator. Results from the last 15 days, refreshed every scan.',
+    a: 'LinkedIn, Indeed, Glassdoor, Google Jobs, and 46+ more â€” all via the JSearch aggregator. Results from the last 15 days, refreshed every scan.',
   },
   {
     q: 'What payment methods do you accept?',
-    a: 'All major credit cards via Stripe. We do not store your card details — Stripe handles all payment processing with industry-standard encryption.',
+    a: 'All major credit cards via Stripe. We do not store your card details â€” Stripe handles all payment processing with industry-standard encryption.',
   },
   {
     q: 'Do you offer team or organization plans?',
-    a: 'Yes — contact us at a.aitibour@gmail.com for volume pricing for recruiting teams, career centres, and outplacement firms.',
+    a: 'Yes â€” contact us at a.aitibour@gmail.com for volume pricing for recruiting teams, career centres, and outplacement firms.',
   },
 ]
 
@@ -150,8 +152,22 @@ export default function PricingPage() {
     return () => observerRef.current?.disconnect()
   }, [])
 
-  const handleUpgrade = (plan: 'monthly' | 'quarterly') => {
-    router.push(`/signup?plan=${plan}`)
+  const [upgrading, setUpgrading] = useState<'monthly' | 'quarterly' | null>(null)
+
+  const handleUpgrade = async (plan: 'monthly' | 'quarterly') => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      setUpgrading(plan)
+      try {
+        await redirectToCheckout(plan)
+      } catch (err) {
+        alert('Could not start checkout. Please try again.')
+        console.error(err)
+      }
+    } else {
+      router.push(`/signup?plan=${plan}`)
+    }
   }
 
   return (
@@ -166,11 +182,11 @@ export default function PricingPage() {
         </h1>
         <p className="animate-fadeInUp delay-100 text-gray-500 text-lg mb-2">Cancel any time.</p>
         <p className="animate-fadeInUp delay-200 text-sm font-semibold text-teal-mid">
-          Up to 60% cheaper than the competition — same AI power.
+          Up to 60% cheaper than the competition â€” same AI power.
         </p>
       </div>
 
-      {/* Plans — 3 columns */}
+      {/* Plans â€” 3 columns */}
       <div className="max-w-5xl mx-auto px-6 pb-16">
         <div className="reveal grid md:grid-cols-3 gap-5 mb-6">
 
@@ -181,7 +197,7 @@ export default function PricingPage() {
               <span className="text-5xl font-extrabold text-gray-900">$0</span>
               <span className="text-gray-400 text-sm mb-2">/forever</span>
             </div>
-            <p className="text-gray-400 text-sm mb-6">Get started — no card needed.</p>
+            <p className="text-gray-400 text-sm mb-6">Get started â€” no card needed.</p>
             <ul className="flex flex-col gap-3 mb-8 flex-1">
               {FREE_FEATURES.map(f => (
                 <li key={f} className="flex items-start gap-2.5 text-sm text-gray-700">
@@ -192,11 +208,11 @@ export default function PricingPage() {
             </ul>
             <Link href="/scan"
               className="w-full py-3 rounded-xl border-2 border-teal-mid text-teal-dark font-bold text-sm text-center hover:bg-teal-light transition-colors">
-              Start free →
+              Start free â†’
             </Link>
           </div>
 
-          {/* Quarterly — BEST VALUE */}
+          {/* Quarterly â€” BEST VALUE */}
           <div className="bg-gradient-to-br from-teal-dark to-teal-mid rounded-2xl p-7 flex flex-col relative overflow-hidden shadow-xl">
             <div className="absolute top-4 right-4">
               <span className="text-xs font-extrabold text-teal-dark bg-teal-accent px-3 py-1 rounded-full">BEST VALUE</span>
@@ -218,11 +234,11 @@ export default function PricingPage() {
             </ul>
             <button
               onClick={() => handleUpgrade('quarterly')}
-              
+              disabled={upgrading !== null}
               className="w-full py-3.5 rounded-xl bg-white text-teal-dark font-extrabold text-sm hover:bg-teal-light disabled:opacity-60 transition-colors shadow-md">
-              Get Quarterly →
+              {upgrading === 'quarterly' ? 'Redirecting…' : 'Get Quarterly →'}
             </button>
-            <p className="text-center text-xs text-white/40 mt-3">Cancel anytime · Secure checkout via Stripe</p>
+            <p className="text-center text-xs text-white/40 mt-3">Cancel anytime Â· Secure checkout via Stripe</p>
           </div>
 
           {/* Monthly */}
@@ -243,11 +259,11 @@ export default function PricingPage() {
             </ul>
             <button
               onClick={() => handleUpgrade('monthly')}
-              
+              disabled={upgrading !== null}
               className="w-full py-3.5 rounded-xl bg-teal-dark text-white font-extrabold text-sm hover:bg-teal-mid disabled:opacity-60 transition-colors shadow-md">
-              Get Monthly →
+              {upgrading === 'monthly' ? 'Redirecting…' : 'Get Monthly →'}
             </button>
-            <p className="text-center text-xs text-gray-300 mt-3">Cancel anytime · Secure checkout via Stripe</p>
+            <p className="text-center text-xs text-gray-300 mt-3">Cancel anytime Â· Secure checkout via Stripe</p>
           </div>
         </div>
 
@@ -259,7 +275,7 @@ export default function PricingPage() {
           </div>
           <a href="mailto:a.aitibour@gmail.com"
             className="text-sm font-bold text-teal-dark border-2 border-teal-mid px-5 py-2 rounded-full hover:bg-teal-light transition-colors whitespace-nowrap">
-            Contact us →
+            Contact us â†’
           </a>
         </div>
 
@@ -292,14 +308,14 @@ export default function PricingPage() {
               {[
                 ['CV scans',                   '5 / month',  'Unlimited', 'Unlimited'],
                 ['Job matches per scan',        '5',          'Unlimited', 'Unlimited'],
-                ['Match score & keyword gap',   '✓',          '✓',         '✓'],
-                ['AI CV optimization',          '—',          '✓',         '✓'],
-                ['AI cover letter',             '—',          '✓',         '✓'],
-                ['AI interview prep',           '—',          '✓',         '✓'],
-                ['Keyword comparisons',         '—',          'Unlimited', 'Unlimited'],
-                ['Daily email alerts',          '—',          '✓',         '✓'],
+                ['Match score & keyword gap',   'âœ“',          'âœ“',         'âœ“'],
+                ['AI CV optimization',          'â€”',          'âœ“',         'âœ“'],
+                ['AI cover letter',             'â€”',          'âœ“',         'âœ“'],
+                ['AI interview prep',           'â€”',          'âœ“',         'âœ“'],
+                ['Keyword comparisons',         'â€”',          'Unlimited', 'Unlimited'],
+                ['Daily email alerts',          'â€”',          'âœ“',         'âœ“'],
                 ['Application tracker',         'Basic',      'Unlimited', 'Unlimited'],
-                ['Download PDF / Word',         '—',          '✓',         '✓'],
+                ['Download PDF / Word',         'â€”',          'âœ“',         'âœ“'],
               ].map(([feat, free, quarterly, monthly], i) => (
                 <tr key={feat} className={i % 2 === 0 ? 'bg-gray-50/40' : ''}>
                   <td className="px-6 py-3 text-gray-700">{feat}</td>
@@ -338,10 +354,10 @@ export default function PricingPage() {
 
         {/* Bottom CTA */}
         <div className="text-center">
-          <p className="text-gray-400 text-sm mb-4">Still deciding? Start free — no credit card required.</p>
+          <p className="text-gray-400 text-sm mb-4">Still deciding? Start free â€” no credit card required.</p>
           <Link href="/scan"
             className="inline-flex items-center gap-2 font-bold text-sm bg-teal-dark text-white px-8 py-3.5 rounded-full shadow-lg hover:bg-teal-mid hover:scale-105 transition-all duration-200">
-            Scan my CV free →
+            Scan my CV free â†’
           </Link>
         </div>
       </div>
@@ -350,3 +366,4 @@ export default function PricingPage() {
     </div>
   )
 }
+

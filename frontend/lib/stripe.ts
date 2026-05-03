@@ -9,12 +9,22 @@ export function getStripe() {
 }
 
 export async function redirectToCheckout(plan: 'monthly' | 'quarterly') {
+  const { createClient } = await import('@/lib/supabase')
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+
   const res = await fetch('/api/billing/checkout', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
     body: JSON.stringify({ plan }),
   })
-  if (!res.ok) throw new Error('Failed to create checkout session')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to create checkout session')
+  }
   const { url } = await res.json()
   window.location.href = url
 }

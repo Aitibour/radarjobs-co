@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
-import { useState, useRef } from 'react'
-import { usePathname } from 'next/navigation'
+import { useState, useRef, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
 
 type DropItem = { label: string; desc: string; href: string }
 type NavItem =
@@ -59,8 +60,35 @@ const NAV: NavItem[] = [
 
 export default function Navbar() {
   const path = usePathname()
+  const router = useRouter()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [userLabel, setUserLabel] = useState<string | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Account'
+        setUserLabel(name)
+      }
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const name = session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Account'
+        setUserLabel(name)
+      } else {
+        setUserLabel(null)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/')
+  }
 
   const handleMouseEnter = (label: string) => {
     if (closeTimer.current) clearTimeout(closeTimer.current)
@@ -149,13 +177,29 @@ export default function Navbar() {
 
         {/* Right */}
         <div className="flex items-center gap-2 ml-auto shrink-0">
-          <Link href="/login" className="text-sm font-medium text-white/75 hover:text-white transition-colors px-2 hidden sm:block">
-            Sign in
-          </Link>
-          <Link href="/scan"
-            className="text-sm font-bold bg-white text-teal-dark px-4 py-1.5 rounded-full hover:bg-teal-light hover:scale-105 transition-all duration-200 shadow-sm whitespace-nowrap">
-            Try free →
-          </Link>
+          {userLabel ? (
+            <>
+              <Link href="/dashboard"
+                className="text-sm font-bold bg-white text-teal-dark px-4 py-1.5 rounded-full hover:bg-teal-light transition-all duration-200 shadow-sm whitespace-nowrap max-w-[160px] truncate">
+                {userLabel}
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="text-sm font-medium text-white/75 hover:text-white transition-colors px-2 hidden sm:block whitespace-nowrap">
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="text-sm font-medium text-white/75 hover:text-white transition-colors px-2 hidden sm:block">
+                Sign in
+              </Link>
+              <Link href="/scan"
+                className="text-sm font-bold bg-white text-teal-dark px-4 py-1.5 rounded-full hover:bg-teal-light hover:scale-105 transition-all duration-200 shadow-sm whitespace-nowrap">
+                Try free →
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>
